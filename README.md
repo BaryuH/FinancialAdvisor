@@ -1,7 +1,7 @@
 
-  # Mobile Finance Advisor UI
+# Flowlystic
 
-  This is a code bundle for Mobile Finance Advisor UI. The original project is available at https://www.figma.com/design/aclW0yluz4Uq4HScVX3y64/Mobile-Finance-Advisor-UI.
+This is a code bundle for Flowlystic. The original project is available at https://www.figma.com/design/aclW0yluz4Uq4HScVX3y64/Mobile-Finance-Advisor-UI.
 
   ## Running the code
 

@@ -153,7 +153,9 @@ export function Dashboard() {
       <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-slate-100 p-6 rounded-b-3xl border-b border-slate-800 shadow-2xl">
         <div className="mb-4">
           <p className="text-sm text-slate-300">Xin chào,</p>
-          <h1 className="text-2xl mt-1">Financial Advisor</h1>
+          <h1 className="mt-2 font-signature text-4xl font-extrabold tracking-wide leading-none drop-shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
+            Flowlystic
+          </h1>
           <p className="text-xs text-slate-400 mt-1">Theo doi dong tien thong minh moi ngay</p>
         </div>
 
