@@ -7,8 +7,6 @@ import {
   TrendingDown, 
   Target, 
   Calendar as CalendarIcon,
-  Mic,
-  Camera,
   ArrowRight,
   Plus,
   ChevronLeft,
@@ -179,26 +177,6 @@ export function Dashboard() {
               </div>
               <p className="text-lg text-rose-300">{formatCurrency(totalExpense)}</p>
             </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="px-4 -mt-6">
-        <Card className="p-4 shadow-lg bg-slate-900 border-slate-800">
-          <p className="text-sm text-slate-300 mb-3">Nhập liệu nhanh</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Link to="/smart-input?mode=voice">
-              <Button variant="outline" className="w-full h-20 flex-col gap-2 border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-100">
-                <Mic className="w-6 h-6 text-cyan-300" />
-                <span className="text-sm">Giọng nói</span>
-              </Button>
-            </Link>
-            <Link to="/smart-input?mode=scan">
-              <Button variant="outline" className="w-full h-20 flex-col gap-2 border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-100">
-                <Camera className="w-6 h-6 text-violet-300" />
-                <span className="text-sm">Quét hóa đơn</span>
-              </Button>
-            </Link>
           </div>
         </Card>
       </div>
