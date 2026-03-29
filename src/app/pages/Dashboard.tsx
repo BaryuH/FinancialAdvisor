@@ -152,7 +152,7 @@ export function Dashboard() {
         <div className="mb-4">
           <p className="text-sm text-slate-300">Xin chào,</p>
           <h1 className="mt-2 font-signature text-4xl font-extrabold tracking-wide leading-none drop-shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
-            Flowlystic
+            Fainance
           </h1>
           <p className="mt-2 text-sm text-slate-300 leading-snug">
             Theo dõi dòng tiền thông minh mỗi ngày
