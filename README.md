@@ -1,11 +1,24 @@
+# fainance
 
-# Flowlystic
+Monorepo split into:
 
-This is a code bundle for Flowlystic. The original project is available at https://www.figma.com/design/aclW0yluz4Uq4HScVX3y64/Mobile-Finance-Advisor-UI.
+- `frontend/`: Vite + React UI
+- `backend/`: server/API (scaffold)
 
-  ## Running the code
+## Frontend
 
-  Run `npm i` to install the dependencies.
+From repo root:
 
-  Run `npm run dev` to start the development server.
-  
+- Install: `npm --prefix frontend i`
+- Dev: `npm run dev:frontend`
+- Build: `npm run build:frontend`
+
+## Backend
+
+Backend is currently a minimal scaffold.
+
+From repo root:
+
+- Install: `npm --prefix backend i`
+- Run: `npm run start:backend`
+
