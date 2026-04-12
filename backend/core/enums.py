@@ -28,3 +28,9 @@ class SmartInputStatus(str, Enum):
     CONFIRMED = "confirmed"
     FAILED = "failed"
     DISCARDED = "discarded"
+
+
+class ReportPeriod(str, Enum):
+    WEEK = "week"
+    MONTH = "month"
+    QUARTER = "quarter"
