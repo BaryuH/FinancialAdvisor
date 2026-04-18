@@ -1,400 +1,411 @@
-import { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { mockTransactions, Transaction } from "../lib/mockData";
 import {
   ChevronLeft,
   ChevronRight,
+  UtensilsCrossed,
+  ShoppingBag,
+  Car,
+  Film,
+  House,
+  HeartPulse,
+  BookOpen,
   Wallet,
-  ArrowUpRight,
-  ArrowUp,
-  ArrowDown,
-  MinusCircle,
-  PlusCircle,
-  ArrowLeftRight,
+  TrendingUp,
 } from "lucide-react";
+import { toast } from "sonner";
+import { getCalendarDay, getCalendarMonth } from "../lib/api/calendar";
+import { ApiTransaction, getCategories, ApiCategory } from "../lib/api/transactions";
+
+type UiTransaction = {
+  id: string;
+  type: "income" | "expense";
+  amount: number;
+  category: string;
+  description: string;
+  date: string;
+};
+
+function mapApiTransaction(item: ApiTransaction): UiTransaction {
+  return {
+    id: item.id,
+    type: item.type,
+    amount: item.amount_minor,
+    category: item.category.name,
+    description: item.description,
+    date: item.transaction_date,
+  };
+}
 
 export function Calendar() {
   const navigate = useNavigate();
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1));
-  const [transactions] = useState<Transaction[]>(mockTransactions);
-  const [selectedDay, setSelectedDay] = useState(24);
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const daysInPrevMonth = new Date(year, month, 0).getDate();
-  const startingDayOfWeek = (new Date(year, month, 1).getDay() + 6) % 7; // Monday = 0
+  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(today.toISOString().slice(0, 7));
+  const [selectedDate, setSelectedDate] = useState(today.toISOString().slice(0, 10));
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("vi-VN", {
+  const [monthData, setMonthData] = useState<{
+    summary: {
+      income_minor: number;
+      expense_minor: number;
+      net_minor: number;
+    };
+    days: {
+      date: string;
+      income_minor: number;
+      expense_minor: number;
+      net_minor: number;
+      transaction_count: number;
+    }[];
+  } | null>(null);
+
+  const [dayTransactions, setDayTransactions] = useState<UiTransaction[]>([]);
+  const [daySummary, setDaySummary] = useState<{
+    income_minor: number;
+    expense_minor: number;
+    net_minor: number;
+    transaction_count: number;
+  } | null>(null);
+
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [isMonthLoading, setIsMonthLoading] = useState(true);
+  const [isDayLoading, setIsDayLoading] = useState(true);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
     }).format(amount);
-
-  const shortMoney = (amount: number) => {
-    const n = Math.round(amount);
-    if (n === 0) return "0";
-    const sign = n < 0 ? "−" : "";
-    const abs = Math.abs(n);
-    if (abs >= 1_000_000_000) return `${sign}${(abs / 1_000_000_000).toFixed(1)}B`;
-    if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}tr`;
-    if (abs >= 1_000) return `${sign}${Math.round(abs / 1_000)}k`;
-    return `${sign}${abs}`;
   };
 
-  const getTransactionsForDate = (day: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return transactions.filter((t) => t.date === dateStr);
-  };
-
-  const getDayTotals = (day: number) => {
-    const list = getTransactionsForDate(day);
-    const income = list.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-    const expense = list.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-    return { income, expense, net: income - expense, list };
-  };
-
-  const previousMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-    setSelectedDay(1);
-  };
-
-  const nextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-    setSelectedDay(1);
-  };
-
-  const todayRef = new Date(2026, 2, 24);
-  const isToday = (day: number) =>
-    day === todayRef.getDate() &&
-    month === todayRef.getMonth() &&
-    year === todayRef.getFullYear();
-
-  const monthStats = useMemo(() => {
-    const inMonth = transactions.filter((t) => t.date.startsWith(monthKey));
-    const income = inMonth.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-    const expense = inMonth.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-    return { income, expense, net: income - expense };
-  }, [transactions, monthKey]);
-
-  const selectedTotals = getDayTotals(selectedDay);
-  const selectedList = selectedTotals.list;
-
-  type Cell = {
-    key: string;
-    day: number;
-    inMonth: boolean;
-  };
-
-  const cells: Cell[] = useMemo(() => {
-    const list: Cell[] = [];
-    for (let i = startingDayOfWeek - 1; i >= 0; i -= 1) {
-      const d = daysInPrevMonth - i;
-      list.push({ key: `prev-${d}`, day: d, inMonth: false });
+  const loadMonthData = async (month: string) => {
+    try {
+      setIsMonthLoading(true);
+      const response = await getCalendarMonth(month);
+      setMonthData({
+        summary: response.summary,
+        days: response.days,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không tải được dữ liệu tháng");
+    } finally {
+      setIsMonthLoading(false);
     }
-    for (let d = 1; d <= daysInMonth; d += 1) {
-      list.push({ key: `cur-${d}`, day: d, inMonth: true });
-    }
-    const tailCount = (7 - (list.length % 7)) % 7;
-    for (let d = 1; d <= tailCount; d += 1) {
-      list.push({ key: `next-${d}`, day: d, inMonth: false });
-    }
-    return list;
-  }, [startingDayOfWeek, daysInPrevMonth, daysInMonth]);
+  };
 
-  const monthLabel = `Tháng ${String(month + 1).padStart(2, "0")} ${year}`;
+  const loadDayData = async (date: string) => {
+    try {
+      setIsDayLoading(true);
+      const response = await getCalendarDay(date);
+      setDaySummary(response.summary);
+      setDayTransactions(response.items.map(mapApiTransaction));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không tải được dữ liệu ngày");
+    } finally {
+      setIsDayLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const [expenseRes, incomeRes] = await Promise.all([
+        getCategories("expense"),
+        getCategories("income"),
+      ]);
+      setCategories([...expenseRes.items, ...incomeRes.items]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Không tải được danh mục");
+    }
+  };
+
+  useEffect(() => {
+    loadMonthData(currentMonth);
+  }, [currentMonth]);
+
+  useEffect(() => {
+    loadDayData(selectedDate);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const daysInMonth = useMemo(() => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    return new Date(year, month, 0).getDate();
+  }, [currentMonth]);
+
+  const firstDayOfMonth = useMemo(() => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    const jsDay = new Date(year, month - 1, 1).getDay();
+    return jsDay === 0 ? 6 : jsDay - 1;
+  }, [currentMonth]);
+
+  const monthDaysMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        date: string;
+        income_minor: number;
+        expense_minor: number;
+        net_minor: number;
+        transaction_count: number;
+      }
+    >();
+
+    monthData?.days.forEach((day) => {
+      map.set(day.date, day);
+    });
+
+    return map;
+  }, [monthData]);
+
+  const calendarDays = useMemo(() => {
+    const days = [];
+
+    for (let i = 0; i < firstDayOfMonth; i += 1) {
+      days.push(null);
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = `${currentMonth}-${String(day).padStart(2, "0")}`;
+      days.push({
+        day,
+        date,
+        data: monthDaysMap.get(date) ?? null,
+      });
+    }
+
+    return days;
+  }, [currentMonth, daysInMonth, firstDayOfMonth, monthDaysMap]);
+
+  const selectedDayLabel = useMemo(() => {
+    return new Date(selectedDate).toLocaleDateString("vi-VN", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }, [selectedDate]);
+
+  const monthLabel = useMemo(() => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString("vi-VN", {
+      month: "long",
+      year: "numeric",
+    });
+  }, [currentMonth]);
+
+  const goToPreviousMonth = () => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    const previous = new Date(year, month - 2, 1);
+    const nextMonth = previous.toISOString().slice(0, 7);
+    setCurrentMonth(nextMonth);
+    setSelectedDate(`${nextMonth}-01`);
+  };
+
+  const goToNextMonth = () => {
+    const [year, month] = currentMonth.split("-").map(Number);
+    const next = new Date(year, month, 1);
+    const nextMonth = next.toISOString().slice(0, 7);
+    setCurrentMonth(nextMonth);
+    setSelectedDate(`${nextMonth}-01`);
+  };
+
+  const getCategoryIcon = (categoryName: string) => {
+    const iconName = categories.find((c) => c.name === categoryName)?.icon_key;
+
+    switch (iconName) {
+      case "utensils":
+        return <UtensilsCrossed className="w-4 h-4 text-amber-300" />;
+      case "shopping-bag":
+        return <ShoppingBag className="w-4 h-4 text-violet-300" />;
+      case "car":
+        return <Car className="w-4 h-4 text-cyan-300" />;
+      case "film":
+        return <Film className="w-4 h-4 text-pink-300" />;
+      case "home":
+        return <House className="w-4 h-4 text-emerald-300" />;
+      case "heart":
+        return <HeartPulse className="w-4 h-4 text-rose-300" />;
+      case "book":
+        return <BookOpen className="w-4 h-4 text-indigo-300" />;
+      case "wallet":
+        return <Wallet className="w-4 h-4 text-emerald-300" />;
+      case "trending-up":
+        return <TrendingUp className="w-4 h-4 text-sky-300" />;
+      default:
+        return <Wallet className="w-4 h-4 text-slate-300" />;
+    }
+  };
 
   return (
     <div className="max-w-md mx-auto min-h-screen pb-6">
-      {/* Minimal hero */}
-      <div className="px-5 pt-5 pb-5">
-        <div className="flex items-center gap-2">
+      <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-slate-100 p-6 border-b border-slate-800">
+        <div className="flex items-center gap-3 mb-6">
           <Button
             variant="ghost"
             size="icon"
-            className="text-foreground hover:bg-foreground/10 h-10 w-10"
+            className="h-11 w-11 text-white hover:bg-white/20"
             onClick={() => navigate("/")}
           >
             <ChevronLeft className="w-6 h-6" />
           </Button>
-          <h1 className="text-lg font-semibold">Lịch tài chính</h1>
+          <h1 className="text-2xl font-semibold">Lịch chi tiêu</h1>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="icon"
+            className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
+            onClick={goToPreviousMonth}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <p className="text-lg font-semibold capitalize">{monthLabel}</p>
+          <Button
+            variant="outline"
+            size="icon"
+            className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
+            onClick={goToNextMonth}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Summary strip */}
-      <div className="px-4 -mt-5">
-        <div className="rounded-2xl border border-border/60 bg-card/70 backdrop-blur-sm px-4 py-3 shadow-sm">
-          <div className="flex items-center justify-center gap-5 flex-wrap text-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <Wallet className="w-4 h-4 text-emerald-500" />
-              <span className="text-muted-foreground">Số dư:</span>
-              <span
-                className={`font-semibold tabular-nums ${
-                  monthStats.net >= 0 ? "text-emerald-500" : "text-rose-500"
-                }`}
-              >
-                {shortMoney(monthStats.net)} đ
-              </span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <ArrowUpRight className="w-4 h-4 text-emerald-500" />
-              <span className="text-muted-foreground">Dòng tiền:</span>
-              <span
-                className={`font-semibold tabular-nums ${
-                  monthStats.net >= 0 ? "text-emerald-500" : "text-rose-500"
-                }`}
-              >
-                {monthStats.net >= 0 ? "+" : ""}
-                {shortMoney(monthStats.net)} đ
-              </span>
-            </span>
-          </div>
-          <div className="mt-2 flex items-center justify-center gap-5 flex-wrap text-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <ArrowUp className="w-4 h-4 text-emerald-500" />
-              <span className="text-muted-foreground">Thu:</span>
-              <span className="font-semibold tabular-nums text-emerald-500">
-                {shortMoney(monthStats.income)} đ
-              </span>
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <ArrowDown className="w-4 h-4 text-rose-500" />
-              <span className="text-muted-foreground">Chi:</span>
-              <span className="font-semibold tabular-nums text-rose-500">
-                {shortMoney(monthStats.expense)} đ
-              </span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Action buttons */}
-      <div className="px-4 mt-4">
-        <div className="grid grid-cols-3 gap-3">
-          <ActionTile
-            icon={MinusCircle}
-            label="Chi"
-            tone="rose"
-            onClick={() => navigate("/transactions?add=1")}
-          />
-          <ActionTile
-            icon={PlusCircle}
-            label="Thu"
-            tone="emerald"
-            onClick={() => navigate("/transactions?add=1")}
-          />
-          <ActionTile
-            icon={ArrowLeftRight}
-            label="Chuyển"
-            tone="sky"
-            onClick={() => navigate("/transactions?add=1")}
-          />
-        </div>
-      </div>
-
-      {/* Calendar panel */}
-      <div className="px-4 mt-5">
-        <div className="rounded-3xl border border-border/60 bg-card/60 backdrop-blur-sm p-4 sm:p-5">
-          <h2 className="text-base font-semibold mb-4">Lịch giao dịch</h2>
-
-          {/* Month nav */}
-          <div className="flex items-center justify-between mb-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full bg-foreground/[0.04] border border-border/60 hover:bg-foreground/[0.08]"
-              onClick={previousMonth}
-              aria-label="Tháng trước"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <div className="text-center">
-              <p className="text-lg font-semibold capitalize leading-none">
-                {monthLabel}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Năm {year}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full bg-foreground/[0.04] border border-border/60 hover:bg-foreground/[0.08]"
-              onClick={nextMonth}
-              aria-label="Tháng sau"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Weekdays */}
-          <div className="grid grid-cols-7 text-center mt-2 mb-1">
-            {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => (
-              <div
-                key={d}
-                className="text-[11px] font-medium text-muted-foreground py-1.5"
-              >
-                {d}
-              </div>
-            ))}
-          </div>
-
-          {/* Day cells */}
-          <div className="grid grid-cols-7 gap-y-1">
-            {cells.map((cell) => {
-              if (!cell.inMonth) {
-                return (
-                  <div
-                    key={cell.key}
-                    className="h-14 flex flex-col items-center justify-center text-muted-foreground/50 select-none"
-                  >
-                    <span className="text-[15px] font-medium">{cell.day}</span>
-                  </div>
-                );
-              }
-
-              const { expense, income } = getDayTotals(cell.day);
-              const isSelected = selectedDay === cell.day;
-              const today = isToday(cell.day);
-
-              let secondary: { text: string; tone: string } | null = null;
-              if (expense > 0) {
-                secondary = {
-                  text: `−${shortMoney(expense)}`,
-                  tone: isSelected ? "text-white/85" : "text-rose-500",
-                };
-              } else if (income > 0) {
-                secondary = {
-                  text: `+${shortMoney(income)}`,
-                  tone: isSelected ? "text-white/85" : "text-emerald-500",
-                };
-              }
-
-              return (
-                <button
-                  key={cell.key}
-                  type="button"
-                  onClick={() => setSelectedDay(cell.day)}
-                  className={`h-14 mx-0.5 flex flex-col items-center justify-center rounded-xl transition-colors ${
-                    isSelected
-                      ? "bg-emerald-600 text-white shadow-[0_6px_18px_rgba(16,185,129,0.35)]"
-                      : today
-                        ? "bg-emerald-500/10 ring-1 ring-emerald-500/40 text-foreground"
-                        : "text-foreground hover:bg-foreground/[0.05]"
-                  }`}
-                >
-                  <span
-                    className={`text-[15px] leading-none ${
-                      isSelected ? "font-bold" : "font-medium"
-                    }`}
-                  >
-                    {cell.day}
-                  </span>
-                  {secondary ? (
-                    <span
-                      className={`mt-1 text-[10px] leading-none tabular-nums ${secondary.tone}`}
-                    >
-                      {secondary.text}
-                    </span>
-                  ) : (
-                    <span className="mt-1 text-[10px] leading-none text-muted-foreground/40">
-                      ·
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Selected day detail */}
-      <div className="px-4 mt-6">
-        <h2 className="text-base font-semibold mb-2">
-          Giao dịch ngày {selectedDay}/{month + 1}/{year}
-        </h2>
-        {selectedList.length === 0 ? (
-          <div className="rounded-2xl border border-border/60 bg-card/60 p-8 text-center text-muted-foreground">
-            <p className="text-sm">Không có giao dịch trong ngày này</p>
-            <Button
-              variant="outline"
-              className="mt-4 h-10 text-sm"
-              onClick={() => navigate("/transactions?add=1")}
-            >
-              Thêm giao dịch
-            </Button>
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-border/60 bg-card/60 divide-y divide-border/60 overflow-hidden">
-            {selectedList.map((transaction) => (
-              <div
-                key={transaction.id}
-                className="p-4 flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-sm font-medium">{transaction.description}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {transaction.category}
+      <div className="px-4 mt-6 space-y-6">
+        <Card className="p-4 bg-slate-900 border-slate-800">
+          {isMonthLoading || !monthData ? (
+            <div className="text-center py-8 text-slate-400">Đang tải dữ liệu tháng...</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-xs text-slate-400 mb-1">Thu nhập</p>
+                  <p className="text-sm text-emerald-300">{formatCurrency(monthData.summary.income_minor)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-xs text-slate-400 mb-1">Chi tiêu</p>
+                  <p className="text-sm text-rose-300">{formatCurrency(monthData.summary.expense_minor)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-xs text-slate-400 mb-1">Ròng</p>
+                  <p className={`text-sm ${monthData.summary.net_minor >= 0 ? "text-cyan-300" : "text-amber-300"}`}>
+                    {formatCurrency(monthData.summary.net_minor)}
                   </p>
                 </div>
-                <p
-                  className={`text-sm font-semibold tabular-nums ${
-                    transaction.type === "income"
-                      ? "text-emerald-500"
-                      : "text-rose-500"
-                  }`}
-                >
-                  {transaction.type === "income" ? "+" : "−"}
-                  {formatCurrency(transaction.amount)}
-                </p>
               </div>
-            ))}
-          </div>
-        )}
+
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((label) => (
+                  <div key={label} className="text-center text-xs text-slate-400 py-2">
+                    {label}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {calendarDays.map((item, index) => {
+                  if (!item) {
+                    return <div key={`empty-${index}`} className="aspect-square" />;
+                  }
+
+                  const isSelected = item.date === selectedDate;
+                  const expense = item.data?.expense_minor ?? 0;
+                  const hasTransactions = (item.data?.transaction_count ?? 0) > 0;
+
+                  return (
+                    <button
+                      key={item.date}
+                      type="button"
+                      onClick={() => setSelectedDate(item.date)}
+                      className={`aspect-square rounded-xl border text-xs p-1 flex flex-col items-center justify-center transition ${
+                        isSelected
+                          ? "bg-cyan-500/20 border-cyan-400 text-cyan-100"
+                          : "bg-slate-950 border-slate-800 text-slate-100 hover:bg-slate-900"
+                      }`}
+                    >
+                      <span>{item.day}</span>
+                      {hasTransactions && (
+                        <span className="text-[10px] text-rose-300 mt-1">
+                          {expense > 0 ? `${Math.round(expense / 1000)}k` : "•"}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </Card>
+
+        <div>
+          <p className="text-sm text-slate-400 mb-3 capitalize">{selectedDayLabel}</p>
+
+          <Card className="p-4 bg-slate-900 border-slate-800 mb-4">
+            {isDayLoading || !daySummary ? (
+              <div className="text-center py-6 text-slate-400">Đang tải dữ liệu ngày...</div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-xs text-slate-400 mb-1">Chi tiêu ngày</p>
+                  <p className="text-sm text-rose-300">{formatCurrency(daySummary.expense_minor)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <p className="text-xs text-slate-400 mb-1">Số giao dịch</p>
+                  <p className="text-sm text-slate-100">{daySummary.transaction_count}</p>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {isDayLoading && (
+            <div className="text-center py-10 text-slate-400">Đang tải giao dịch trong ngày...</div>
+          )}
+
+          {!isDayLoading && dayTransactions.length === 0 && (
+            <div className="text-center py-10 text-slate-400">
+              <p>Không có giao dịch trong ngày này</p>
+            </div>
+          )}
+
+          {!isDayLoading && dayTransactions.length > 0 && (
+            <Card className="divide-y divide-slate-800 bg-slate-900 border-slate-800">
+              {dayTransactions.map((transaction) => (
+                <div key={transaction.id} className="p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
+                        transaction.type === "income"
+                          ? "bg-emerald-500/15 border-emerald-500/30"
+                          : "bg-slate-800 border-slate-700"
+                      }`}
+                    >
+                      {getCategoryIcon(transaction.category)}
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-100">{transaction.description}</p>
+                      <p className="text-xs text-slate-400">{transaction.category}</p>
+                    </div>
+                  </div>
+                  <p
+                    className={`text-sm ${
+                      transaction.type === "income" ? "text-emerald-300" : "text-rose-300"
+                    }`}
+                  >
+                    {transaction.type === "income" ? "+" : "-"}
+                    {formatCurrency(transaction.amount)}
+                  </p>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
       </div>
     </div>
-  );
-}
-
-type Tone = "rose" | "emerald" | "sky";
-
-interface ActionTileProps {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  tone: Tone;
-  onClick: () => void;
-}
-
-function ActionTile({ icon: Icon, label, tone, onClick }: ActionTileProps) {
-  const toneClasses: Record<Tone, { border: string; text: string; glow: string; bg: string }> = {
-    rose: {
-      border: "border-rose-500/35",
-      text: "text-rose-500",
-      glow: "shadow-[0_0_24px_rgba(244,63,94,0.18)]",
-      bg: "bg-rose-500/[0.06]",
-    },
-    emerald: {
-      border: "border-emerald-500/35",
-      text: "text-emerald-500",
-      glow: "shadow-[0_0_24px_rgba(16,185,129,0.20)]",
-      bg: "bg-emerald-500/[0.06]",
-    },
-    sky: {
-      border: "border-sky-500/35",
-      text: "text-sky-500",
-      glow: "shadow-[0_0_24px_rgba(14,165,233,0.18)]",
-      bg: "bg-sky-500/[0.06]",
-    },
-  };
-  const c = toneClasses[tone];
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`h-16 rounded-2xl border ${c.border} ${c.bg} ${c.glow} flex flex-col items-center justify-center gap-1 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]`}
-    >
-      <Icon className={`w-5 h-5 ${c.text}`} />
-      <span className={`text-sm font-semibold ${c.text}`}>{label}</span>
-    </button>
   );
 }
