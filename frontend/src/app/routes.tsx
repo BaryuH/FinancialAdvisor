@@ -7,9 +7,14 @@ import { Calendar } from "./pages/Calendar";
 import { SmartInput } from "./pages/SmartInput";
 import { AIAdvisor } from "./pages/AIAdvisor";
 import { Reports } from "./pages/Reports";
+import { Auth } from "./pages/Auth";
 import { Layout } from "./components/Layout";
 
 export const router = createBrowserRouter([
+  {
+    path: "/auth",
+    Component: Auth,
+  },
   {
     path: "/",
     Component: Layout,

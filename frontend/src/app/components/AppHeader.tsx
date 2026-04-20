@@ -10,6 +10,7 @@ import {
   Calendar as CalendarIcon,
   PenLine,
   Bot,
+  UserRound,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
@@ -34,6 +35,7 @@ const NAV_ITEMS: { path: string; labelKey: string; icon: React.ComponentType<{ c
     { path: "/calendar", labelKey: "nav.calendar", icon: CalendarIcon },
     { path: "/smart-input", labelKey: "nav.smartInput", icon: PenLine },
     { path: "/ai-advisor", labelKey: "nav.aiAdvisor", icon: Bot },
+    { path: "/auth", labelKey: "nav.auth", icon: UserRound },
   ];
 
 export function AppHeader() {

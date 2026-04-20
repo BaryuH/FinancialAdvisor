@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { TrendingUp, TrendingDown, DollarSign, Lightbulb } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Lightbulb, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { Calendar } from "../components/ui/calendar";
 import {
   Cell,
   ResponsiveContainer,
@@ -36,9 +38,16 @@ type CashFlowChartItem = {
 
 const BAR_COLORS = ["#22c55e", "#06b6d4", "#8b5cf6", "#f59e0b", "#ef4444", "#3b82f6"];
 
+const PERIOD_LABEL: Record<ReportPeriod, string> = {
+  week: "Tuần",
+  month: "Tháng",
+  quarter: "Quý",
+};
+
 export function Reports() {
   const [period, setPeriod] = useState<ReportPeriod>("month");
-  const [anchorDate, setAnchorDate] = useState(new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const [anchorDate, setAnchorDate] = useState(today);
   const [isLoading, setIsLoading] = useState(true);
 
   const [totalIncome, setTotalIncome] = useState(0);
@@ -162,6 +171,40 @@ export function Reports() {
   }, [totalExpense, incomeExpenseSeries.length]);
 
   const savingsRateText = `${toSafeNumber(savingsRatePercent).toFixed(1)}%`;
+  const anchorDateLabel = useMemo(() => {
+    const date = new Date(anchorDate);
+    if (Number.isNaN(date.getTime())) return anchorDate;
+    const base = date.toLocaleDateString("vi-VN", {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    return `${PERIOD_LABEL[period]} neo: ${base}`;
+  }, [anchorDate, period]);
+  const anchorDateDisplay = useMemo(() => {
+    const date = new Date(anchorDate);
+    if (Number.isNaN(date.getTime())) return anchorDate;
+    return date.toLocaleDateString("vi-VN");
+  }, [anchorDate]);
+  const selectedAnchorDate = useMemo(() => {
+    const date = new Date(anchorDate);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }, [anchorDate]);
+
+  const shiftAnchorDate = (offset: number) => {
+    const date = new Date(anchorDate);
+    if (Number.isNaN(date.getTime())) return;
+    const next = new Date(date);
+    if (period === "week") {
+      next.setDate(next.getDate() + offset * 7);
+    } else if (period === "month") {
+      next.setMonth(next.getMonth() + offset);
+    } else {
+      next.setMonth(next.getMonth() + offset * 3);
+    }
+    setAnchorDate(next.toISOString().slice(0, 10));
+  };
 
   return (
     <div className="max-w-md mx-auto min-h-screen pb-6">
@@ -231,12 +274,66 @@ export function Reports() {
             </Button>
           </div>
 
-          <input
-            type="date"
-            value={anchorDate}
-            onChange={(e) => setAnchorDate(e.target.value)}
-            className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground"
-          />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={() => shiftAnchorDate(-1)}
+                aria-label="Lùi kỳ"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="relative flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10 w-full justify-start gap-2 border-border bg-card px-3 text-left text-sm font-normal hover:bg-muted"
+                    >
+                      <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-foreground">{anchorDateDisplay}</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedAnchorDate}
+                      onSelect={(date) => {
+                        if (!date) return;
+                        setAnchorDate(date.toISOString().slice(0, 10));
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={() => shiftAnchorDate(1)}
+                aria-label="Tiến kỳ"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setAnchorDate(today)}
+                className="h-8 px-2 text-xs text-muted-foreground"
+              >
+                Về hôm nay
+              </Button>
+              <span className="text-xs text-muted-foreground">{anchorDateLabel}</span>
+            </div>
+          </div>
         </div>
 
         <Card className="p-4 bg-slate-900 border-slate-800">

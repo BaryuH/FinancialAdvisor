@@ -20,8 +20,8 @@ function usePrefersReducedMotion() {
 
 export function Layout() {
   const location = useLocation();
-  const hideBottomNav = location.pathname === "/ai-advisor";
-  const hideAppHeader = location.pathname === "/ai-advisor";
+  const hideBottomNav = location.pathname === "/ai-advisor" || location.pathname === "/auth";
+  const hideAppHeader = location.pathname === "/auth";
   const reducedMotion = usePrefersReducedMotion();
 
   useLayoutEffect(() => {

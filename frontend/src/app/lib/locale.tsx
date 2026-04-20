@@ -22,6 +22,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "nav.calendar": "Calendar",
     "nav.smartInput": "Smart input",
     "nav.aiAdvisor": "AI advisor",
+    "nav.auth": "Auth",
     "page.dashboard": "Dashboard",
     "page.transactions": "Transactions",
     "page.budget": "Budget",
@@ -30,6 +31,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "page.smartInput": "Smart input",
     "page.aiAdvisor": "AI advisor",
     "page.reports": "Reports",
+    "page.auth": "Auth",
     "bottom.overview": "Overview",
     "bottom.budget": "Budget",
     "bottom.reports": "Reports",
@@ -49,6 +51,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "nav.calendar": "Lịch chi tiêu",
     "nav.smartInput": "Nhập liệu thông minh",
     "nav.aiAdvisor": "Trợ lý AI",
+    "nav.auth": "Tài khoản",
     "page.dashboard": "Tổng quan",
     "page.transactions": "Giao dịch",
     "page.budget": "Ngân sách",
@@ -57,6 +60,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "page.smartInput": "Nhập liệu thông minh",
     "page.aiAdvisor": "Trợ lý AI",
     "page.reports": "Báo cáo",
+    "page.auth": "Tài khoản",
     "bottom.overview": "Tổng quan",
     "bottom.budget": "Ngân sách",
     "bottom.reports": "Báo cáo",
@@ -89,6 +93,7 @@ export function pageTitleKeyForPath(pathname: string): string {
     "smart-input": "page.smartInput",
     "ai-advisor": "page.aiAdvisor",
     reports: "page.reports",
+    auth: "page.auth",
   };
   return map[seg] ?? "page.dashboard";
 }

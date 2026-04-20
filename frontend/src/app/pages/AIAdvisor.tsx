@@ -1,10 +1,8 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router";
+import React, { useEffect, useRef, useState } from "react";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import {
-  ChevronLeft,
   Send,
   Bot,
   User,
@@ -15,6 +13,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { sendAdvisorMessage } from "../lib/api/aiAdvisor";
+import { AnimatePresence, motion } from "motion/react";
 
 type ChatMessage = {
   id: string;
@@ -36,77 +35,77 @@ type ExpandState = Record<
 
 const markdownComponents = {
   h1: ({ children }: any) => (
-    <h1 className="text-2xl font-bold text-slate-100 mt-5 mb-3">{children}</h1>
+    <h1 className="mb-3 mt-5 text-2xl font-bold text-foreground">{children}</h1>
   ),
   h2: ({ children }: any) => (
-    <h2 className="text-xl font-bold text-slate-100 mt-5 mb-3">{children}</h2>
+    <h2 className="mb-3 mt-5 text-xl font-bold text-foreground">{children}</h2>
   ),
   h3: ({ children }: any) => (
-    <h3 className="text-lg font-bold text-slate-100 mt-4 mb-2">{children}</h3>
+    <h3 className="mb-2 mt-4 text-lg font-bold text-foreground">{children}</h3>
   ),
   h4: ({ children }: any) => (
-    <h4 className="text-base font-semibold text-slate-100 mt-4 mb-2">{children}</h4>
+    <h4 className="mb-2 mt-4 text-base font-semibold text-foreground">{children}</h4>
   ),
   p: ({ children }: any) => (
-    <p className="text-sm leading-7 text-slate-200 my-2">{children}</p>
+    <p className="my-2 text-sm leading-7 text-foreground/95">{children}</p>
   ),
   strong: ({ children }: any) => (
-    <strong className="font-semibold text-white">{children}</strong>
+    <strong className="font-semibold text-foreground">{children}</strong>
   ),
   em: ({ children }: any) => (
-    <em className="italic text-slate-100">{children}</em>
+    <em className="italic text-foreground">{children}</em>
   ),
   ul: ({ children }: any) => (
-    <ul className="list-disc pl-5 my-3 space-y-2 text-slate-200">{children}</ul>
+    <ul className="my-3 list-disc space-y-2 pl-5 text-foreground/95">{children}</ul>
   ),
   ol: ({ children }: any) => (
-    <ol className="list-decimal pl-5 my-3 space-y-2 text-slate-200">{children}</ol>
+    <ol className="my-3 list-decimal space-y-2 pl-5 text-foreground/95">{children}</ol>
   ),
   li: ({ children }: any) => (
     <li className="text-sm leading-7">{children}</li>
   ),
-  hr: () => <hr className="my-5 border-slate-700" />,
+  hr: () => <hr className="my-5 border-border/80" />,
   blockquote: ({ children }: any) => (
-    <blockquote className="my-4 border-l-4 border-cyan-500/70 bg-slate-950/60 px-4 py-3 text-slate-300 italic rounded-r-lg">
+    <blockquote className="my-4 rounded-r-lg border-l-4 border-emerald-500/60 bg-muted/55 px-4 py-3 italic text-muted-foreground">
       {children}
     </blockquote>
   ),
   code({ inline, children }: any) {
     if (inline) {
       return (
-        <code className="rounded bg-slate-950 px-1.5 py-0.5 text-cyan-300 text-[13px]">
+        <code className="rounded bg-muted px-1.5 py-0.5 text-[13px] text-emerald-700 dark:text-emerald-300">
           {children}
         </code>
       );
     }
 
     return (
-      <pre className="my-4 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-4">
-        <code className="text-sm text-cyan-300">{children}</code>
+      <pre className="my-4 overflow-x-auto rounded-xl border border-border/80 bg-muted/45 p-4">
+        <code className="text-sm text-emerald-700 dark:text-emerald-300">{children}</code>
       </pre>
     );
   },
   table: ({ children }: any) => (
     <div className="my-5 overflow-x-auto">
-      <table className="w-full border-collapse overflow-hidden rounded-xl border border-slate-700 text-sm">
+      <table className="w-full overflow-hidden rounded-xl border border-border/80 text-sm">
         {children}
       </table>
     </div>
   ),
   thead: ({ children }: any) => (
-    <thead className="bg-slate-800/80 text-slate-100">{children}</thead>
+    <thead className="bg-muted text-foreground">{children}</thead>
   ),
   tbody: ({ children }: any) => (
-    <tbody className="bg-slate-950/40">{children}</tbody>
+    <tbody className="bg-card">{children}</tbody>
   ),
   tr: ({ children }: any) => (
-    <tr className="border-b border-slate-700 last:border-b-0">{children}</tr>
+    <tr className="border-b border-border/70 last:border-b-0">{children}</tr>
   ),
   th: ({ children }: any) => (
     <th className="px-4 py-3 text-left font-semibold">{children}</th>
   ),
   td: ({ children }: any) => (
-    <td className="px-4 py-3 align-top text-slate-200">{children}</td>
+    <td className="px-4 py-3 align-top text-foreground/95">{children}</td>
   ),
 };
 
@@ -134,22 +133,22 @@ function ReportSection({
   if (!content || !content.trim()) return null;
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/40 overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-border/80 bg-muted/35">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-900/60 transition"
+        className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-muted/80"
       >
-        <span className="text-sm font-medium text-slate-100">{title}</span>
+        <span className="text-sm font-medium text-foreground">{title}</span>
         {isOpen ? (
-          <ChevronDown className="w-4 h-4 text-slate-400" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
         ) : (
-          <ChevronRight className="w-4 h-4 text-slate-400" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         )}
       </button>
 
       {isOpen && (
-        <div className="border-t border-slate-800 px-4 py-3">
+        <div className="border-t border-border/70 px-4 py-3">
           <MarkdownBlock content={content} />
         </div>
       )}
@@ -182,10 +181,27 @@ function buildAssistantContent(result: {
   return "AI Advisor chưa trả về nội dung phù hợp.";
 }
 
+function LoadingDots() {
+  return (
+    <span className="ml-1 inline-flex items-center gap-1 align-middle" aria-hidden="true">
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 dark:bg-emerald-300/95"
+          style={{
+            animationDuration: "0.9s",
+            animationDelay: `${index * 0.14}s`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export function AIAdvisor() {
-  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const endRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -198,6 +214,10 @@ export function AIAdvisor() {
   ]);
 
   const [expanded, setExpanded] = useState<ExpandState>({});
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, isSending]);
 
   const toggleSection = (
     messageId: string,
@@ -297,26 +317,8 @@ ${question}
 
   return (
     <div className="max-w-md mx-auto min-h-screen pb-24">
-      <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 text-slate-100 p-6 border-b border-slate-800">
-        <div className="flex items-center gap-3 mb-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-11 w-11 text-white hover:bg-white/20"
-            onClick={() => navigate("/")}
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-          <h1 className="text-2xl font-semibold">AI Advisor</h1>
-        </div>
-
-        <p className="text-sm text-slate-300">
-          Hỏi về phân tích cơ bản, kỹ thuật hoặc tư vấn đầu tư.
-        </p>
-      </div>
-
-      <div className="px-4 mt-6 space-y-4">
-        {messages.map((message) => {
+      <div className="mt-3 space-y-4 px-4">
+        {messages.map((message, index) => {
           const messageExpand = expanded[message.id] ?? {
             technical: false,
             fundamental: false,
@@ -324,80 +326,107 @@ ${question}
           };
 
           return (
-            <Card
+            <motion.div
               key={message.id}
-              className={`p-4 border ${
-                message.role === "user"
-                  ? "bg-cyan-950/40 border-cyan-800"
-                  : "bg-slate-900 border-slate-800"
-              }`}
+              initial={{ opacity: 0, y: 12, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{
+                duration: 0.24,
+                delay: Math.min(index * 0.02, 0.12),
+                ease: [0.22, 1, 0.36, 1],
+              }}
             >
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5">
-                  {message.role === "user" ? (
-                    <User className="w-4 h-4 text-cyan-300" />
-                  ) : (
-                    <Bot className="w-4 h-4 text-emerald-300" />
-                  )}
+              <Card
+                className={`p-4 border ${
+                  message.role === "user"
+                    ? "border-cyan-500/35 bg-cyan-500/8"
+                    : "border-border/80 bg-card/95"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    {message.role === "user" ? (
+                      <User className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+                    ) : (
+                      <Bot className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      {message.role === "user" ? "Bạn" : "AI Advisor"}
+                    </p>
+
+                    {message.role === "assistant" ? (
+                      <div className="space-y-3">
+                        <MarkdownBlock content={message.content} />
+
+                        <ReportSection
+                          title="Báo cáo kỹ thuật"
+                          content={message.technicalAnalysis}
+                          isOpen={messageExpand.technical}
+                          onToggle={() => toggleSection(message.id, "technical")}
+                        />
+
+                        <ReportSection
+                          title="Báo cáo cơ bản"
+                          content={message.fundamentalAnalysis}
+                          isOpen={messageExpand.fundamental}
+                          onToggle={() => toggleSection(message.id, "fundamental")}
+                        />
+
+                        <ReportSection
+                          title="Tư vấn đầu tư"
+                          content={message.investmentAnalysis}
+                          isOpen={messageExpand.investment}
+                          onToggle={() => toggleSection(message.id, "investment")}
+                        />
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+                        {message.content}
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <div className="flex-1">
-                  <p className="text-xs text-slate-400 mb-2">
-                    {message.role === "user" ? "Bạn" : "AI Advisor"}
-                  </p>
-
-                  {message.role === "assistant" ? (
-                    <div className="space-y-3">
-                      <MarkdownBlock content={message.content} />
-
-                      <ReportSection
-                        title="Báo cáo kỹ thuật"
-                        content={message.technicalAnalysis}
-                        isOpen={messageExpand.technical}
-                        onToggle={() => toggleSection(message.id, "technical")}
-                      />
-
-                      <ReportSection
-                        title="Báo cáo cơ bản"
-                        content={message.fundamentalAnalysis}
-                        isOpen={messageExpand.fundamental}
-                        onToggle={() => toggleSection(message.id, "fundamental")}
-                      />
-
-                      <ReportSection
-                        title="Tư vấn đầu tư"
-                        content={message.investmentAnalysis}
-                        isOpen={messageExpand.investment}
-                        onToggle={() => toggleSection(message.id, "investment")}
-                      />
-                    </div>
-                  ) : (
-                    <div className="text-sm text-slate-100 whitespace-pre-wrap leading-6">
-                      {message.content}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
           );
         })}
 
-        {isSending && (
-          <Card className="p-4 border bg-slate-900 border-slate-800">
-            <div className="flex items-start gap-3">
-              <Bot className="w-4 h-4 text-emerald-300 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-xs text-slate-400 mb-2">AI Advisor</p>
-                <p className="text-sm text-slate-300 leading-6">
-                  AI đang phân tích, vui lòng chờ...
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
+        <AnimatePresence>
+          {isSending && (
+            <motion.div
+              key="assistant-loading"
+              initial={{ opacity: 0, y: 10, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <Card className="border-border/80 bg-card/95 p-4">
+                <div className="flex items-start gap-3">
+                  <Bot className="mt-0.5 h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                  <div className="flex-1">
+                    <p className="mb-2 text-xs text-muted-foreground">AI Advisor</p>
+                    <div className="inline-flex items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm leading-6 text-emerald-700 dark:text-emerald-200">
+                      <span className="animate-pulse">AI đang phân tích</span>
+                      <LoadingDots />
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div ref={endRef} />
       </div>
 
-      <div className="fixed left-1/2 bottom-0 w-full max-w-md -translate-x-1/2 border-t border-slate-800 bg-slate-950/95 backdrop-blur-md p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        className="fixed bottom-0 left-1/2 w-full max-w-md -translate-x-1/2 border-t border-border bg-background/95 p-4 backdrop-blur-md"
+      >
         <div className="flex items-center gap-2">
           <Input
             placeholder="Nhập câu hỏi tài chính..."
@@ -405,13 +434,13 @@ ${question}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isSending}
-            className="bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-400"
+            className="border-border/80 bg-card text-foreground placeholder:text-muted-foreground"
           />
-          <Button onClick={handleSend} disabled={isSending || !input.trim()} size="icon">
+          <Button onClick={handleSend} disabled={isSending || !input.trim()} size="icon" className="shrink-0">
             <Send className="w-4 h-4" />
           </Button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

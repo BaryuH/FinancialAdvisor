@@ -10,6 +10,9 @@ import {
   Edit,
   Trash2,
   AlertTriangle,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   UtensilsCrossed,
   ShoppingBag,
   Car,
@@ -66,13 +69,61 @@ export function Budget() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const initialMonth = new Date().toISOString().slice(0, 7);
+  const currentYear = new Date().getFullYear();
+  const monthOptions = [
+    { value: "01", label: "Tháng 1" },
+    { value: "02", label: "Tháng 2" },
+    { value: "03", label: "Tháng 3" },
+    { value: "04", label: "Tháng 4" },
+    { value: "05", label: "Tháng 5" },
+    { value: "06", label: "Tháng 6" },
+    { value: "07", label: "Tháng 7" },
+    { value: "08", label: "Tháng 8" },
+    { value: "09", label: "Tháng 9" },
+    { value: "10", label: "Tháng 10" },
+    { value: "11", label: "Tháng 11" },
+    { value: "12", label: "Tháng 12" },
+  ] as const;
+  const yearOptions = useMemo(
+    () => Array.from({ length: 11 }, (_, index) => currentYear - 5 + index),
+    [currentYear],
+  );
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+
+  const shiftSelectedMonth = (offset: number) => {
+    const [year, month] = selectedMonth.split("-").map(Number);
+    if (!year || !month) return;
+    const next = new Date(year, month - 1 + offset, 1);
+    const nextValue = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonth(nextValue);
+  };
+
+  const resetToCurrentMonth = () => {
+    setSelectedMonth(initialMonth);
+  };
 
   const [formData, setFormData] = useState({
     categoryId: "",
     limit: "",
-    month: currentMonth,
+    month: initialMonth,
   });
+
+  const parseMonthValue = (value: string) => {
+    const [yearPart, monthPart] = value.split("-");
+    const year = Number(yearPart);
+    const month = Number(monthPart);
+    return {
+      year: Number.isFinite(year) && year > 0 ? year : currentYear,
+      month: Number.isFinite(month) && month >= 1 && month <= 12 ? month : 1,
+    };
+  };
+
+  const formatMonthValue = (year: number, month: number) =>
+    `${year}-${String(month).padStart(2, "0")}`;
+
+  const selectedMonthParts = useMemo(() => parseMonthValue(selectedMonth), [selectedMonth]);
+  const formMonthParts = useMemo(() => parseMonthValue(formData.month), [formData.month]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -103,15 +154,15 @@ export function Budget() {
   };
 
   useEffect(() => {
-    loadBudgets(currentMonth);
+    loadBudgets(selectedMonth);
     loadCategories();
-  }, [currentMonth]);
+  }, [selectedMonth]);
 
   const resetForm = () => {
     setFormData({
       categoryId: "",
       limit: "",
-      month: currentMonth,
+      month: selectedMonth,
     });
     setEditingBudget(null);
   };
@@ -165,7 +216,7 @@ export function Budget() {
     try {
       await deleteBudget(budgetId);
       toast.success("Xóa ngân sách thành công");
-      await loadBudgets(currentMonth);
+      await loadBudgets(selectedMonth);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Xóa ngân sách thất bại");
     }
@@ -181,7 +232,30 @@ export function Budget() {
     [budgets],
   );
 
+  const totalRemaining = Math.max(totalBudget - totalSpent, 0);
   const overallPercentage = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
+  const overBudgetCount = useMemo(() => budgets.filter((b) => b.usagePercent > 100).length, [budgets]);
+  const warningCount = useMemo(
+    () => budgets.filter((b) => b.usagePercent > 80 && b.usagePercent <= 100).length,
+    [budgets],
+  );
+  const monthLabel = useMemo(() => {
+    const [year, month] = selectedMonth.split("-").map(Number);
+    if (!year || !month) return selectedMonth;
+    return new Date(year, month - 1, 1).toLocaleDateString("vi-VN", {
+      month: "long",
+      year: "numeric",
+    });
+  }, [selectedMonth]);
+  const sortedBudgets = useMemo(
+    () => [...budgets].sort((a, b) => b.usagePercent - a.usagePercent),
+    [budgets],
+  );
+
+  const openCreateDialog = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
 
   const getCategoryIcon = (categoryName: string) => {
     const iconName = categories.find((c) => c.name === categoryName)?.icon_key;
@@ -212,83 +286,179 @@ export function Budget() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen pb-6">
-      <div className="px-4 pt-3 pb-4 text-foreground border-b border-border">
-        <Card className="p-5 bg-card border border-border text-card-foreground">
-          <p className="text-base text-muted-foreground mb-1">Tổng ngân sách tháng này</p>
-          <div className="flex items-baseline gap-2 mb-4">
-            <p className="text-2xl text-primary">{formatCurrency(totalSpent)}</p>
-            <p className="text-base text-muted-foreground">/ {formatCurrency(totalBudget)}</p>
+      <div className="px-4 pt-3">
+        <Card className="border-border/80 bg-card p-5 text-card-foreground">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Tổng ngân sách</p>
+              <p className="text-xs text-muted-foreground capitalize">{monthLabel}</p>
+            </div>
+            <div className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+              {overallPercentage.toFixed(0)}% đã dùng
+            </div>
           </div>
-          <Progress value={Math.min(overallPercentage, 100)} className="h-3 bg-muted [&>div]:bg-primary" />
-          <p className="text-sm text-muted-foreground mt-3">
-            Còn lại: {formatCurrency(Math.max(totalBudget - totalSpent, 0))}
-          </p>
+
+          <div className="mb-4 flex items-baseline gap-2">
+            <p className="text-2xl font-semibold text-foreground">{formatCurrency(totalSpent)}</p>
+            <p className="text-sm text-muted-foreground">/ {formatCurrency(totalBudget)}</p>
+          </div>
+
+          <Progress value={Math.min(overallPercentage, 100)} className="h-2.5 bg-muted [&>div]:bg-primary" />
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-lg border border-border/70 bg-muted/45 px-2.5 py-2">
+              <p className="text-[11px] text-muted-foreground">Còn lại</p>
+              <p className="mt-0.5 text-sm font-medium text-foreground">{formatCurrency(totalRemaining)}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/45 px-2.5 py-2">
+              <p className="text-[11px] text-muted-foreground">Cảnh báo</p>
+              <p className="mt-0.5 text-sm font-medium text-amber-600 dark:text-amber-400">{warningCount}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/45 px-2.5 py-2">
+              <p className="text-[11px] text-muted-foreground">Vượt ngân sách</p>
+              <p className="mt-0.5 text-sm font-medium text-rose-600 dark:text-rose-400">{overBudgetCount}</p>
+            </div>
+          </div>
         </Card>
       </div>
 
-      <div className="px-4 mt-6 space-y-4">
-        <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-md border-b border-border">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-foreground">Danh mục ngân sách</h2>
+      <div className="mt-4 px-4">
+        <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md">
+          <div className="flex items-center gap-2">
             <Button
+              type="button"
               variant="outline"
-              onClick={() => {
-                resetForm();
-                setIsDialogOpen(true);
-              }}
-              className="h-11 px-4 text-sm border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={() => shiftSelectedMonth(-1)}
+              aria-label="Tháng trước"
             >
-              <Plus className="w-4 h-4 mr-1" />
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="relative flex-1">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="grid grid-cols-2 gap-2 rounded-md border border-border/80 bg-card p-1 pl-9">
+                <Select
+                  value={String(selectedMonthParts.month).padStart(2, "0")}
+                  onValueChange={(value) =>
+                    setSelectedMonth(formatMonthValue(selectedMonthParts.year, Number(value)))
+                  }
+                >
+                  <SelectTrigger className="h-8 border-none bg-transparent px-2 text-xs shadow-none focus-visible:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(selectedMonthParts.year)}
+                  onValueChange={(value) =>
+                    setSelectedMonth(formatMonthValue(Number(value), selectedMonthParts.month))
+                  }
+                >
+                  <SelectTrigger className="h-8 border-none bg-transparent px-2 text-xs shadow-none focus-visible:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yearOptions.map((year) => (
+                      <SelectItem key={year} value={String(year)}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={() => shiftSelectedMonth(1)}
+              aria-label="Tháng sau"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={resetToCurrentMonth}
+              className="h-8 px-2 text-xs text-muted-foreground"
+            >
+              Về tháng hiện tại
+            </Button>
+            <Button
+              variant="default"
+              onClick={openCreateDialog}
+              className="h-10 shrink-0 px-3 text-sm font-medium"
+            >
+              <Plus className="mr-1 h-4 w-4" />
               Thêm
             </Button>
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">Danh mục ngân sách theo tháng đã chọn</p>
         </div>
+      </div>
 
+      <div className="px-4 mt-4 space-y-4">
         {isLoading && (
-          <div className="text-center py-12 text-slate-400">
-            <p>Đang tải ngân sách...</p>
-          </div>
+          <Card className="border-border/80 bg-card px-4 py-8 text-center">
+            <p className="text-sm text-muted-foreground">Đang tải ngân sách...</p>
+          </Card>
         )}
 
         {!isLoading &&
-          budgets.map((budget) => {
+          sortedBudgets.map((budget) => {
             const percentage = budget.usagePercent;
             const isOverBudget = percentage > 100;
             const isWarning = percentage > 80 && !isOverBudget;
+            const statusLabel = isOverBudget ? "Vượt hạn mức" : isWarning ? "Cần chú ý" : "Ổn định";
+            const statusClass = isOverBudget
+              ? "text-rose-700 bg-rose-500/10 border-rose-500/30 dark:text-rose-300"
+              : isWarning
+                ? "text-amber-700 bg-amber-500/10 border-amber-500/30 dark:text-amber-300"
+                : "text-emerald-700 bg-emerald-500/10 border-emerald-500/30 dark:text-emerald-300";
 
             return (
-              <Card key={budget.id} className="p-5 bg-slate-900 border-slate-800">
-                <div className="flex items-center justify-between mb-4">
+              <Card key={budget.id} className="border-border/80 bg-card p-5">
+                <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-muted/45">
                       {getCategoryIcon(budget.category)}
                     </div>
                     <div>
-                      <p className="text-base font-semibold text-slate-100">{budget.category}</p>
-                      <p className="text-sm text-slate-300 mt-0.5">
+                      <p className="text-base font-semibold text-foreground">{budget.category}</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
                         {formatCurrency(budget.spent)} / {formatCurrency(budget.limit)}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {(isOverBudget || isWarning) && (
-                      <AlertTriangle className={`w-5 h-5 ${isOverBudget ? "text-red-500" : "text-yellow-500"}`} />
-                    )}
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusClass}`}>
+                      {statusLabel}
+                    </span>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-11 w-11 text-slate-300 hover:text-slate-100"
+                      className="h-9 w-9 text-muted-foreground hover:text-foreground"
                       onClick={() => handleEdit(budget)}
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-11 w-11 text-red-400 hover:text-red-300"
+                      className="h-9 w-9 text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300"
                       onClick={() => handleDelete(budget.id)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -296,32 +466,28 @@ export function Budget() {
                 <div className="space-y-2">
                   <Progress
                     value={Math.min(percentage, 100)}
-                    className={`h-2 ${
+                    className={`h-2 bg-muted ${
                       isOverBudget
-                        ? "[&>div]:bg-red-500"
+                        ? "[&>div]:bg-rose-500"
                         : isWarning
-                        ? "[&>div]:bg-yellow-500"
-                        : "[&>div]:bg-emerald-500"
+                          ? "[&>div]:bg-amber-500"
+                          : "[&>div]:bg-emerald-500"
                     }`}
                   />
                   <div className="flex items-center justify-between text-sm">
-                    <span
-                      className={
-                        isOverBudget ? "text-rose-400" : isWarning ? "text-amber-400" : "text-slate-300"
-                      }
-                    >
+                    <span className={isOverBudget ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}>
                       {percentage.toFixed(0)}% đã sử dụng
                     </span>
-                    <span className="text-slate-300">
+                    <span className="text-muted-foreground">
                       Còn lại: {formatCurrency(Math.max(budget.remaining, 0))}
                     </span>
                   </div>
                 </div>
 
                 {isOverBudget && (
-                  <div className="mt-3 p-2 rounded-lg border border-destructive/30 bg-destructive/10">
-                    <p className="text-sm text-destructive flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-2">
+                    <p className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
                       <span>Đã vượt ngân sách {formatCurrency(Math.abs(budget.remaining))}</span>
                     </p>
                   </div>
@@ -331,10 +497,10 @@ export function Budget() {
           })}
 
         {!isLoading && budgets.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
-            <p>Chưa có ngân sách nào</p>
-            <p className="text-sm mt-2">Nhấn "Thêm" để tạo ngân sách mới</p>
-          </div>
+          <Card className="border-border/80 bg-card px-4 py-8 text-center">
+            <p className="text-foreground">Chưa có ngân sách nào</p>
+            <p className="mt-2 text-sm text-muted-foreground">Thử nhấn "Thêm" để tạo ngân sách cho tháng này</p>
+          </Card>
         )}
       </div>
 
@@ -386,13 +552,49 @@ export function Budget() {
 
             <div>
               <Label htmlFor="month">Tháng</Label>
-              <Input
-                id="month"
-                type="month"
-                className="h-11 text-base"
-                value={formData.month}
-                onChange={(e) => setFormData({ ...formData, month: e.target.value })}
-              />
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <Select
+                  value={String(formMonthParts.month).padStart(2, "0")}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      month: formatMonthValue(formMonthParts.year, Number(value)),
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-11 text-base">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={String(formMonthParts.year)}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      month: formatMonthValue(Number(value), formMonthParts.month),
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-11 text-base">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {yearOptions.map((year) => (
+                      <SelectItem key={year} value={String(year)}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div>
