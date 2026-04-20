@@ -1,10 +1,9 @@
-# Optional Blueprint: connect this repo in Render → Blueprints, or copy these values into a manual Web Service.
+# Optional Blueprint: one Web Service serves UI + API (see Dockerfile).
 # https://render.com/docs/blueprint-spec
 services:
   - type: web
     name: fainance-api
-    runtime: python
+    runtime: docker
     plan: free
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: sh start-render.sh
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
