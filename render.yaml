@@ -1,0 +1,10 @@
+# Optional Blueprint: connect this repo in Render → Blueprints, or copy these values into a manual Web Service.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: fainance-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: sh start-render.sh
