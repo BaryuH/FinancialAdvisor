@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from core.enums import TransactionType
+from core.security import get_current_user
 from db.session import get_db
+from models.user import User
 from schemas.transaction import (
     TransactionCreate,
     TransactionListResponse,
@@ -34,9 +36,11 @@ def list_transactions(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TransactionListResponse:
     items, total_items, total_pages = TransactionService.list_transactions(
         db=db,
+        current_user=current_user,
         transaction_type=type,
         category_id=category_id,
         q=q,
@@ -64,8 +68,13 @@ def list_transactions(
 def create_transaction(
     payload: TransactionCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TransactionResponse:
-    transaction = TransactionService.create_transaction(db, payload)
+    transaction = TransactionService.create_transaction(
+        db,
+        current_user=current_user,
+        payload=payload,
+    )
     return TransactionResponse.model_validate(transaction)
 
 
@@ -78,8 +87,13 @@ def create_transaction(
 def get_transaction(
     transaction_id: UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TransactionResponse:
-    transaction = TransactionService.get_transaction(db, transaction_id)
+    transaction = TransactionService.get_transaction(
+        db,
+        current_user=current_user,
+        transaction_id=transaction_id,
+    )
     return TransactionResponse.model_validate(transaction)
 
 
@@ -93,8 +107,14 @@ def update_transaction(
     transaction_id: UUID,
     payload: TransactionUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> TransactionResponse:
-    transaction = TransactionService.update_transaction(db, transaction_id, payload)
+    transaction = TransactionService.update_transaction(
+        db,
+        current_user=current_user,
+        transaction_id=transaction_id,
+        payload=payload,
+    )
     return TransactionResponse.model_validate(transaction)
 
 
@@ -106,5 +126,10 @@ def update_transaction(
 def delete_transaction(
     transaction_id: UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
-    TransactionService.delete_transaction(db, transaction_id)
+    TransactionService.delete_transaction(
+        db,
+        current_user=current_user,
+        transaction_id=transaction_id,
+    )

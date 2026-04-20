@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from core.enums import TransactionType
 from models.transaction import Transaction
+from models.user import User
 from schemas.calendar import (
     CalendarDayResponse,
     CalendarDayTransactionItem,
@@ -16,15 +17,19 @@ from schemas.calendar import (
     CalendarMonthSummary,
 )
 from utils.dates import format_year_month, get_month_date_range, parse_year_month
-from utils.demo_user import get_or_create_demo_user_id
 
 
 class CalendarService:
     @staticmethod
-    def get_month_data(db: Session, month: str) -> CalendarMonthResponse:
+    def get_month_data(
+        db: Session,
+        *,
+        current_user: User,
+        month: str,
+    ) -> CalendarMonthResponse:
         month_date = CalendarService._parse_month_or_raise(month)
         month_start, month_end = get_month_date_range(month_date)
-        user_id = get_or_create_demo_user_id(db)
+        user_id = current_user.id
 
         totals_stmt = select(
             func.coalesce(
@@ -109,14 +114,17 @@ class CalendarService:
         )
 
     @staticmethod
-    def get_day_data(db: Session, target_date: date) -> CalendarDayResponse:
-        user_id = get_or_create_demo_user_id(db)
-
+    def get_day_data(
+        db: Session,
+        *,
+        current_user: User,
+        target_date: date,
+    ) -> CalendarDayResponse:
         stmt = (
             select(Transaction)
             .options(joinedload(Transaction.category))
             .where(
-                Transaction.user_id == user_id,
+                Transaction.user_id == current_user.id,
                 Transaction.transaction_date == target_date,
             )
             .order_by(Transaction.created_at.desc())

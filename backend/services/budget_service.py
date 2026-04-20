@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.enums import CategoryFlowType
 from models.budget import Budget
+from models.user import User
 from repositories.budget_repository import BudgetRepository
 from repositories.category_repository import CategoryRepository
 from schemas.budget import (
@@ -21,9 +22,14 @@ from utils.dates import format_year_month, get_month_date_range, parse_year_mont
 
 class BudgetService:
     @staticmethod
-    def list_budgets(db: Session, month: str) -> BudgetListResponse:
+    def list_budgets(
+        db: Session,
+        *,
+        current_user: User,
+        month: str,
+    ) -> BudgetListResponse:
         budget_month = BudgetService._parse_month_or_raise(month)
-        user_id = BudgetRepository.get_or_create_demo_user_id(db)
+        user_id = current_user.id
 
         budgets = BudgetRepository.list_by_month(
             db=db,
@@ -61,11 +67,20 @@ class BudgetService:
         )
 
     @staticmethod
-    def create_budget(db: Session, payload: BudgetCreate) -> BudgetItemResponse:
+    def create_budget(
+        db: Session,
+        *,
+        current_user: User,
+        payload: BudgetCreate,
+    ) -> BudgetItemResponse:
         budget_month = BudgetService._parse_month_or_raise(payload.month)
-        user_id = BudgetRepository.get_or_create_demo_user_id(db)
+        user_id = current_user.id
 
-        category = CategoryRepository.get_by_id(db, payload.category_id)
+        category = CategoryRepository.get_accessible_by_id(
+            db,
+            user_id=user_id,
+            category_id=payload.category_id,
+        )
         if category is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -115,11 +130,17 @@ class BudgetService:
     @staticmethod
     def update_budget(
         db: Session,
+        *,
+        current_user: User,
         budget_id: UUID,
         payload: BudgetUpdate,
     ) -> BudgetItemResponse:
-        budget = BudgetService._get_budget_or_raise(db, budget_id)
-        user_id = budget.user_id
+        budget = BudgetService._get_budget_or_raise(
+            db,
+            current_user=current_user,
+            budget_id=budget_id,
+        )
+        user_id = current_user.id
 
         effective_category_id = payload.category_id if payload.category_id is not None else budget.category_id
         effective_month = (
@@ -128,7 +149,11 @@ class BudgetService:
             else budget.budget_month
         )
 
-        category = CategoryRepository.get_by_id(db, effective_category_id)
+        category = CategoryRepository.get_accessible_by_id(
+            db,
+            user_id=user_id,
+            category_id=effective_category_id,
+        )
         if category is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -161,6 +186,7 @@ class BudgetService:
 
         updated_budget = BudgetRepository.update(
             db=db,
+            user_id=user_id,
             budget=budget,
             payload=payload,
             budget_month=effective_month if payload.month is not None else None,
@@ -179,13 +205,31 @@ class BudgetService:
         )
 
     @staticmethod
-    def delete_budget(db: Session, budget_id: UUID) -> None:
-        budget = BudgetService._get_budget_or_raise(db, budget_id)
+    def delete_budget(
+        db: Session,
+        *,
+        current_user: User,
+        budget_id: UUID,
+    ) -> None:
+        budget = BudgetService._get_budget_or_raise(
+            db,
+            current_user=current_user,
+            budget_id=budget_id,
+        )
         BudgetRepository.delete(db, budget)
 
     @staticmethod
-    def _get_budget_or_raise(db: Session, budget_id: UUID) -> Budget:
-        budget = BudgetRepository.get_by_id(db, budget_id)
+    def _get_budget_or_raise(
+        db: Session,
+        *,
+        current_user: User,
+        budget_id: UUID,
+    ) -> Budget:
+        budget = BudgetRepository.get_by_id(
+            db,
+            user_id=current_user.id,
+            budget_id=budget_id,
+        )
         if budget is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

@@ -10,11 +10,19 @@ from models.smart_input_draft import SmartInputDraft
 
 class SmartInputRepository:
     @staticmethod
-    def get_by_id(db: Session, draft_id: UUID) -> SmartInputDraft | None:
+    def get_by_id(
+        db: Session,
+        *,
+        user_id: UUID,
+        draft_id: UUID,
+    ) -> SmartInputDraft | None:
         stmt = (
             select(SmartInputDraft)
             .options(joinedload(SmartInputDraft.suggested_category))
-            .where(SmartInputDraft.id == draft_id)
+            .where(
+                SmartInputDraft.id == draft_id,
+                SmartInputDraft.user_id == user_id,
+            )
         )
         return db.scalar(stmt)
 
@@ -23,11 +31,19 @@ class SmartInputRepository:
         db.add(draft)
         db.commit()
         db.refresh(draft)
-        return SmartInputRepository.get_by_id(db, draft.id)  # type: ignore[return-value]
+        return SmartInputRepository.get_by_id(
+            db,
+            user_id=draft.user_id,
+            draft_id=draft.id,
+        )  # type: ignore[return-value]
 
     @staticmethod
     def update(db: Session, draft: SmartInputDraft) -> SmartInputDraft:
         db.add(draft)
         db.commit()
         db.refresh(draft)
-        return SmartInputRepository.get_by_id(db, draft.id)  # type: ignore[return-value]
+        return SmartInputRepository.get_by_id(
+            db,
+            user_id=draft.user_id,
+            draft_id=draft.id,
+        )  # type: ignore[return-value]

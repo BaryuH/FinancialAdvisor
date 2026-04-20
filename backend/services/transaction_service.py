@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from core.enums import TransactionType
 from models.transaction import Transaction
+from models.user import User
 from repositories.category_repository import CategoryRepository
 from repositories.transaction_repository import TransactionRepository
 from schemas.transaction import TransactionCreate, TransactionUpdate
@@ -18,6 +19,7 @@ class TransactionService:
     def list_transactions(
         db: Session,
         *,
+        current_user: User,
         transaction_type: TransactionType | None = None,
         category_id: UUID | None = None,
         q: str | None = None,
@@ -32,8 +34,21 @@ class TransactionService:
                 detail="date_from must be less than or equal to date_to.",
             )
 
+        if category_id is not None:
+            category = CategoryRepository.get_accessible_by_id(
+                db,
+                user_id=current_user.id,
+                category_id=category_id,
+            )
+            if category is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Category not found.",
+                )
+
         return TransactionRepository.list_transactions(
             db=db,
+            user_id=current_user.id,
             transaction_type=transaction_type,
             category_id=category_id,
             q=q,
@@ -44,8 +59,12 @@ class TransactionService:
         )
 
     @staticmethod
-    def get_transaction(db: Session, transaction_id: UUID) -> Transaction:
-        transaction = TransactionRepository.get_by_id(db, transaction_id)
+    def get_transaction(db: Session, *, current_user: User, transaction_id: UUID) -> Transaction:
+        transaction = TransactionRepository.get_by_id(
+            db,
+            user_id=current_user.id,
+            transaction_id=transaction_id,
+        )
         if transaction is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -54,8 +73,17 @@ class TransactionService:
         return transaction
 
     @staticmethod
-    def create_transaction(db: Session, payload: TransactionCreate) -> Transaction:
-        category = CategoryRepository.get_by_id(db, payload.category_id)
+    def create_transaction(
+        db: Session,
+        *,
+        current_user: User,
+        payload: TransactionCreate,
+    ) -> Transaction:
+        category = CategoryRepository.get_accessible_by_id(
+            db,
+            user_id=current_user.id,
+            category_id=payload.category_id,
+        )
 
         if category is None:
             raise HTTPException(
@@ -75,22 +103,34 @@ class TransactionService:
                 detail="Category flow type does not match transaction type.",
             )
 
-        return TransactionRepository.create(db, payload)
+        return TransactionRepository.create(
+            db,
+            user_id=current_user.id,
+            payload=payload,
+        )
 
     @staticmethod
     def update_transaction(
         db: Session,
+        *,
+        current_user: User,
         transaction_id: UUID,
         payload: TransactionUpdate,
     ) -> Transaction:
-        transaction = TransactionService.get_transaction(db, transaction_id)
-
-        effective_type = payload.type if payload.type is not None else transaction.type
-        effective_category_id = (
-            payload.category_id if payload.category_id is not None else transaction.category_id
+        transaction = TransactionService.get_transaction(
+            db,
+            current_user=current_user,
+            transaction_id=transaction_id,
         )
 
-        category = CategoryRepository.get_by_id(db, effective_category_id)
+        effective_type = payload.type if payload.type is not None else transaction.type
+        effective_category_id = payload.category_id if payload.category_id is not None else transaction.category_id
+
+        category = CategoryRepository.get_accessible_by_id(
+            db,
+            user_id=current_user.id,
+            category_id=effective_category_id,
+        )
         if category is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -109,9 +149,23 @@ class TransactionService:
                 detail="Category flow type does not match transaction type.",
             )
 
-        return TransactionRepository.update(db, transaction, payload)
+        return TransactionRepository.update(
+            db,
+            user_id=current_user.id,
+            transaction=transaction,
+            payload=payload,
+        )
 
     @staticmethod
-    def delete_transaction(db: Session, transaction_id: UUID) -> None:
-        transaction = TransactionService.get_transaction(db, transaction_id)
+    def delete_transaction(
+        db: Session,
+        *,
+        current_user: User,
+        transaction_id: UUID,
+    ) -> None:
+        transaction = TransactionService.get_transaction(
+            db,
+            current_user=current_user,
+            transaction_id=transaction_id,
+        )
         TransactionRepository.delete(db, transaction)

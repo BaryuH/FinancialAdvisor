@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from core.enums import ReportPeriod, TransactionType
 from models.transaction import Transaction
+from models.user import User
 from schemas.reports import (
     CashFlowSeriesItem,
     ExpenseByCategoryItem,
@@ -16,7 +17,6 @@ from schemas.reports import (
     ReportsOverviewResponse,
     ReportsSummary,
 )
-from utils.demo_user import get_or_create_demo_user_id
 
 
 class ReportsService:
@@ -24,17 +24,17 @@ class ReportsService:
     def get_overview(
         db: Session,
         *,
+        current_user: User,
         period: ReportPeriod,
         anchor_date: date,
     ) -> ReportsOverviewResponse:
-        user_id = get_or_create_demo_user_id(db)
         start_date, end_date = ReportsService._resolve_period(period, anchor_date)
 
         stmt = (
             select(Transaction)
             .options(joinedload(Transaction.category))
             .where(
-                Transaction.user_id == user_id,
+                Transaction.user_id == current_user.id,
                 Transaction.transaction_date >= start_date,
                 Transaction.transaction_date <= end_date,
             )
@@ -151,6 +151,7 @@ class ReportsService:
         end_date: date,
     ) -> list[CashFlowSeriesItem]:
         net_map: dict[date, int] = defaultdict(int)
+
         for transaction in transactions:
             amount = int(transaction.amount_minor)
             if transaction.type == TransactionType.INCOME:

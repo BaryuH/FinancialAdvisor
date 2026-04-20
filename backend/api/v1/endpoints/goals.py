@@ -5,7 +5,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from core.security import get_current_user
 from db.session import get_db
+from models.user import User
 from schemas.goal import GoalCreate, GoalListResponse, GoalResponse, GoalTopUp, GoalUpdate
 from services.goal_service import GoalService
 
@@ -18,8 +20,14 @@ router = APIRouter(prefix="/goals", tags=["goals"])
     status_code=status.HTTP_200_OK,
     summary="Get goals",
 )
-def list_goals(db: Session = Depends(get_db)) -> GoalListResponse:
-    return GoalService.list_goals(db)
+def list_goals(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GoalListResponse:
+    return GoalService.list_goals(
+        db,
+        current_user=current_user,
+    )
 
 
 @router.post(
@@ -31,8 +39,13 @@ def list_goals(db: Session = Depends(get_db)) -> GoalListResponse:
 def create_goal(
     payload: GoalCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GoalResponse:
-    return GoalService.create_goal(db, payload)
+    return GoalService.create_goal(
+        db,
+        current_user=current_user,
+        payload=payload,
+    )
 
 
 @router.get(
@@ -44,8 +57,13 @@ def create_goal(
 def get_goal(
     goal_id: UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GoalResponse:
-    goal = GoalService.get_goal(db, goal_id)
+    goal = GoalService.get_goal(
+        db,
+        current_user=current_user,
+        goal_id=goal_id,
+    )
     return GoalService._to_goal_response(goal)
 
 
@@ -59,8 +77,14 @@ def update_goal(
     goal_id: UUID,
     payload: GoalUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GoalResponse:
-    return GoalService.update_goal(db, goal_id, payload)
+    return GoalService.update_goal(
+        db,
+        current_user=current_user,
+        goal_id=goal_id,
+        payload=payload,
+    )
 
 
 @router.post(
@@ -73,8 +97,14 @@ def top_up_goal(
     goal_id: UUID,
     payload: GoalTopUp,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GoalResponse:
-    return GoalService.top_up_goal(db, goal_id, payload)
+    return GoalService.top_up_goal(
+        db,
+        current_user=current_user,
+        goal_id=goal_id,
+        payload=payload,
+    )
 
 
 @router.delete(
@@ -85,5 +115,10 @@ def top_up_goal(
 def delete_goal(
     goal_id: UUID,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
-    GoalService.delete_goal(db, goal_id)
+    GoalService.delete_goal(
+        db,
+        current_user=current_user,
+        goal_id=goal_id,
+    )

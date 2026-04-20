@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from core.enums import TransactionType
 from models.goal import Goal
 from models.transaction import Transaction
+from models.user import User
 from repositories.budget_repository import BudgetRepository
 from schemas.dashboard import (
     DashboardBudgetSummary,
@@ -24,7 +25,6 @@ from schemas.dashboard import (
 )
 from services.goal_service import GoalService
 from utils.dates import format_year_month, get_month_date_range, parse_year_month
-from utils.demo_user import get_or_create_demo_user_id
 
 
 class DashboardService:
@@ -32,12 +32,13 @@ class DashboardService:
     def get_summary(
         db: Session,
         *,
+        current_user: User,
         month: str,
         selected_date: date | None = None,
     ) -> DashboardSummaryResponse:
         month_date = DashboardService._parse_month_or_raise(month)
         month_start, month_end = get_month_date_range(month_date)
-        user_id = get_or_create_demo_user_id(db)
+        user_id = current_user.id
 
         target_selected_date = selected_date or month_start
         if target_selected_date < month_start or target_selected_date > month_end:

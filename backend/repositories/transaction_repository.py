@@ -15,11 +15,19 @@ from schemas.transaction import TransactionCreate, TransactionUpdate
 
 class TransactionRepository:
     @staticmethod
-    def get_by_id(db: Session, transaction_id: UUID) -> Transaction | None:
+    def get_by_id(
+        db: Session,
+        *,
+        user_id: UUID,
+        transaction_id: UUID,
+    ) -> Transaction | None:
         stmt = (
             select(Transaction)
             .options(joinedload(Transaction.category))
-            .where(Transaction.id == transaction_id)
+            .where(
+                Transaction.id == transaction_id,
+                Transaction.user_id == user_id,
+            )
         )
         return db.scalar(stmt)
 
@@ -27,6 +35,7 @@ class TransactionRepository:
     def list_transactions(
         db: Session,
         *,
+        user_id: UUID,
         transaction_type: TransactionType | None = None,
         category_id: UUID | None = None,
         q: str | None = None,
@@ -38,9 +47,14 @@ class TransactionRepository:
         stmt: Select[tuple[Transaction]] = (
             select(Transaction)
             .options(joinedload(Transaction.category))
+            .where(Transaction.user_id == user_id)
         )
 
-        count_stmt = select(func.count(Transaction.id)).select_from(Transaction)
+        count_stmt = (
+            select(func.count(Transaction.id))
+            .select_from(Transaction)
+            .where(Transaction.user_id == user_id)
+        )
 
         need_join_category = bool(q)
 
@@ -94,24 +108,35 @@ class TransactionRepository:
         return items, total_items, total_pages
 
     @staticmethod
-    def create(db: Session, payload: TransactionCreate) -> Transaction:
+    def create(
+        db: Session,
+        *,
+        user_id: UUID,
+        payload: TransactionCreate,
+    ) -> Transaction:
         transaction = Transaction(
+            user_id=user_id,
             type=payload.type,
             category_id=payload.category_id,
             amount_minor=payload.amount_minor,
             description=payload.description.strip(),
             transaction_date=payload.transaction_date,
             source=payload.source,
-            user_id=TransactionRepository._get_demo_user_id(db),
         )
         db.add(transaction)
         db.commit()
         db.refresh(transaction)
-        return TransactionRepository.get_by_id(db, transaction.id)  # type: ignore[return-value]
+        return TransactionRepository.get_by_id(
+            db,
+            user_id=user_id,
+            transaction_id=transaction.id,
+        )  # type: ignore[return-value]
 
     @staticmethod
     def update(
         db: Session,
+        *,
+        user_id: UUID,
         transaction: Transaction,
         payload: TransactionUpdate,
     ) -> Transaction:
@@ -125,30 +150,13 @@ class TransactionRepository:
         db.add(transaction)
         db.commit()
         db.refresh(transaction)
-        return TransactionRepository.get_by_id(db, transaction.id)  # type: ignore[return-value]
+        return TransactionRepository.get_by_id(
+            db,
+            user_id=user_id,
+            transaction_id=transaction.id,
+        )  # type: ignore[return-value]
 
     @staticmethod
     def delete(db: Session, transaction: Transaction) -> None:
         db.delete(transaction)
         db.commit()
-
-    @staticmethod
-    def _get_demo_user_id(db: Session) -> UUID:
-        # V1: nếu chưa làm auth, lấy 1 user demo đầu tiên.
-        # Sau này thay bằng current_user.id.
-        from models.user import User
-
-        stmt = select(User.id).order_by(User.created_at.asc()).limit(1)
-        user_id = db.scalar(stmt)
-
-        if user_id is None:
-            demo_user = User(
-                email="demo@example.com",
-                display_name="Demo User",
-            )
-            db.add(demo_user)
-            db.commit()
-            db.refresh(demo_user)
-            return demo_user.id
-
-        return user_id

@@ -9,24 +9,37 @@ import { AIAdvisor } from "./pages/AIAdvisor";
 import { Reports } from "./pages/Reports";
 import { Auth } from "./pages/Auth";
 import { Layout } from "./components/Layout";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { GuestOnlyRoute } from "./components/GuestOnlyRoute";
 
 export const router = createBrowserRouter([
   {
     path: "/auth",
-    Component: Auth,
+    Component: GuestOnlyRoute,
+    children: [
+      {
+        index: true,
+        Component: Auth,
+      },
+    ],
   },
   {
     path: "/",
-    Component: Layout,
+    Component: ProtectedRoute,
     children: [
-      { index: true, Component: Dashboard },
-      { path: "transactions", Component: Transactions },
-      { path: "budget", Component: Budget },
-      { path: "goals", Component: Goals },
-      { path: "calendar", Component: Calendar },
-      { path: "smart-input", Component: SmartInput },
-      { path: "ai-advisor", Component: AIAdvisor },
-      { path: "reports", Component: Reports },
+      {
+        Component: Layout,
+        children: [
+          { index: true, Component: Dashboard },
+          { path: "transactions", Component: Transactions },
+          { path: "budget", Component: Budget },
+          { path: "goals", Component: Goals },
+          { path: "calendar", Component: Calendar },
+          { path: "smart-input", Component: SmartInput },
+          { path: "ai-advisor", Component: AIAdvisor },
+          { path: "reports", Component: Reports },
+        ],
+      },
     ],
   },
 ]);

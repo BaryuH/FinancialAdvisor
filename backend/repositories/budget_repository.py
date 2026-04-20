@@ -15,11 +15,19 @@ from schemas.budget import BudgetCreate, BudgetUpdate
 
 class BudgetRepository:
     @staticmethod
-    def get_by_id(db: Session, budget_id: UUID) -> Budget | None:
+    def get_by_id(
+        db: Session,
+        *,
+        user_id: UUID,
+        budget_id: UUID,
+    ) -> Budget | None:
         stmt = (
             select(Budget)
             .options(joinedload(Budget.category))
-            .where(Budget.id == budget_id)
+            .where(
+                Budget.id == budget_id,
+                Budget.user_id == user_id,
+            )
         )
         return db.scalar(stmt)
 
@@ -102,12 +110,17 @@ class BudgetRepository:
         db.add(budget)
         db.commit()
         db.refresh(budget)
-        return BudgetRepository.get_by_id(db, budget.id)  # type: ignore[return-value]
+        return BudgetRepository.get_by_id(
+            db,
+            user_id=user_id,
+            budget_id=budget.id,
+        )  # type: ignore[return-value]
 
     @staticmethod
     def update(
         db: Session,
         *,
+        user_id: UUID,
         budget: Budget,
         payload: BudgetUpdate,
         budget_month: date | None = None,
@@ -126,28 +139,13 @@ class BudgetRepository:
         db.add(budget)
         db.commit()
         db.refresh(budget)
-        return BudgetRepository.get_by_id(db, budget.id)  # type: ignore[return-value]
+        return BudgetRepository.get_by_id(
+            db,
+            user_id=user_id,
+            budget_id=budget.id,
+        )  # type: ignore[return-value]
 
     @staticmethod
     def delete(db: Session, budget: Budget) -> None:
         db.delete(budget)
         db.commit()
-
-    @staticmethod
-    def get_or_create_demo_user_id(db: Session) -> UUID:
-        from models.user import User
-
-        stmt = select(User.id).order_by(User.created_at.asc()).limit(1)
-        user_id = db.scalar(stmt)
-
-        if user_id is None:
-            demo_user = User(
-                email="demo@example.com",
-                display_name="Demo User",
-            )
-            db.add(demo_user)
-            db.commit()
-            db.refresh(demo_user)
-            return demo_user.id
-
-        return user_id

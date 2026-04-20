@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router";
 import {
   Menu,
@@ -10,7 +10,7 @@ import {
   Calendar as CalendarIcon,
   PenLine,
   Bot,
-  UserRound,
+  LogOut,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import {
@@ -24,27 +24,32 @@ import {
 import { ThemeToggle } from "./ThemeToggle";
 import { cn } from "./ui/utils";
 import { useLocale, pageTitleKeyForPath } from "../lib/locale";
+import { useAuth } from "../lib/auth-context";
 
-const NAV_ITEMS: { path: string; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] =
-  [
-    { path: "/", labelKey: "nav.overview", icon: Home },
-    { path: "/reports", labelKey: "nav.reports", icon: BarChart3 },
-    { path: "/transactions", labelKey: "nav.transactions", icon: Receipt },
-    { path: "/budget", labelKey: "nav.budget", icon: PieChart },
-    { path: "/goals", labelKey: "nav.goals", icon: Target },
-    { path: "/calendar", labelKey: "nav.calendar", icon: CalendarIcon },
-    { path: "/smart-input", labelKey: "nav.smartInput", icon: PenLine },
-    { path: "/ai-advisor", labelKey: "nav.aiAdvisor", icon: Bot },
-    { path: "/auth", labelKey: "nav.auth", icon: UserRound },
-  ];
+const NAV_ITEMS: { path: string; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { path: "/", labelKey: "nav.overview", icon: Home },
+  { path: "/reports", labelKey: "nav.reports", icon: BarChart3 },
+  { path: "/transactions", labelKey: "nav.transactions", icon: Receipt },
+  { path: "/budget", labelKey: "nav.budget", icon: PieChart },
+  { path: "/goals", labelKey: "nav.goals", icon: Target },
+  { path: "/calendar", labelKey: "nav.calendar", icon: CalendarIcon },
+  { path: "/smart-input", labelKey: "nav.smartInput", icon: PenLine },
+  { path: "/ai-advisor", labelKey: "nav.aiAdvisor", icon: Bot },
+];
 
 export function AppHeader() {
   const location = useLocation();
   const { locale, setLocale, t } = useLocale();
+  const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const titleKey = pageTitleKeyForPath(location.pathname);
   const title = t(titleKey);
+
+  const profileLabel = useMemo(() => {
+    if (user?.display_name?.trim()) return user.display_name.trim();
+    return user?.email ?? "";
+  }, [user]);
 
   return (
     <header
@@ -70,10 +75,14 @@ export function AppHeader() {
                 <Menu className="h-5 w-5" strokeWidth={2} />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[min(100%,20rem)] border-border p-0 flex flex-col gap-0">
+            <SheetContent side="left" className="flex w-[min(100%,20rem)] flex-col gap-0 border-border p-0">
               <SheetHeader className="border-b border-border px-4 py-4 text-left">
                 <SheetTitle className="text-lg">{t("app.name")}</SheetTitle>
+                {profileLabel ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{profileLabel}</p>
+                ) : null}
               </SheetHeader>
+
               <nav className="flex-1 overflow-y-auto px-2 py-3">
                 <ul className="space-y-1">
                   {NAV_ITEMS.map(({ path, labelKey: key, icon: Icon }) => {
@@ -81,6 +90,7 @@ export function AppHeader() {
                       path === "/"
                         ? location.pathname === "/"
                         : location.pathname === path || location.pathname.startsWith(`${path}/`);
+
                     return (
                       <li key={path}>
                         <SheetClose asChild>
@@ -102,6 +112,21 @@ export function AppHeader() {
                   })}
                 </ul>
               </nav>
+
+              <div className="border-t border-border px-2 py-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 w-full justify-start gap-3 rounded-xl px-3"
+                  onClick={async () => {
+                    setMenuOpen(false);
+                    await logout();
+                  }}
+                >
+                  <LogOut className="h-4 w-4" />
+                  {locale === "vi" ? "Đăng xuất" : "Logout"}
+                </Button>
+              </div>
             </SheetContent>
           </Sheet>
 

@@ -36,11 +36,23 @@ $$ LANGUAGE plpgsql;
 
 -- 4.1 users
 CREATE TABLE users (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email        VARCHAR(255) UNIQUE,
-  display_name VARCHAR(120),
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email          VARCHAR(255) NOT NULL,
+  password_hash  VARCHAR(255) NOT NULL,
+  display_name   VARCHAR(120),
+  is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+  token_version  INTEGER NOT NULL DEFAULT 0,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  CONSTRAINT chk_users_email_not_blank
+    CHECK (length(btrim(email)) > 0),
+
+  CONSTRAINT chk_users_password_hash_not_blank
+    CHECK (length(btrim(password_hash)) > 0),
+
+  CONSTRAINT chk_users_token_version_non_negative
+    CHECK (token_version >= 0)
 );
 
 -- 4.2 categories
@@ -60,9 +72,6 @@ CREATE TABLE categories (
 
   CONSTRAINT fk_categories_user
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-
-  CONSTRAINT uq_categories_user_slug_flow
-    UNIQUE (user_id, slug, flow_type),
 
   CONSTRAINT chk_categories_color_hex
     CHECK (color_hex ~ '^#[0-9A-Fa-f]{6}$')
@@ -206,12 +215,24 @@ ALTER TABLE smart_input_drafts
 -- 5) Indexes
 -- =========================================================
 
+-- users
+CREATE UNIQUE INDEX uq_users_email_lower
+  ON users (LOWER(email));
+
 -- categories
 CREATE INDEX idx_categories_flow_active
   ON categories(flow_type, is_active);
 
 CREATE INDEX idx_categories_user_active
   ON categories(user_id, is_active);
+
+CREATE UNIQUE INDEX uq_categories_system_slug_flow
+  ON categories(slug, flow_type)
+  WHERE user_id IS NULL;
+
+CREATE UNIQUE INDEX uq_categories_user_slug_flow
+  ON categories(user_id, slug, flow_type)
+  WHERE user_id IS NOT NULL;
 
 -- budgets
 CREATE INDEX idx_budgets_user_month

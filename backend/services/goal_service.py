@@ -7,15 +7,19 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from models.goal import Goal
+from models.user import User
 from repositories.goal_repository import GoalRepository
 from schemas.goal import GoalCreate, GoalListResponse, GoalResponse, GoalTopUp, GoalUpdate
 
 
 class GoalService:
     @staticmethod
-    def list_goals(db: Session) -> GoalListResponse:
-        user_id = GoalRepository.get_or_create_demo_user_id(db)
-        goals = GoalRepository.list_goals(db, user_id=user_id)
+    def list_goals(
+        db: Session,
+        *,
+        current_user: User,
+    ) -> GoalListResponse:
+        goals = GoalRepository.list_goals(db, user_id=current_user.id)
 
         items = [GoalService._to_goal_response(goal) for goal in goals]
         total_items = len(items)
@@ -30,8 +34,17 @@ class GoalService:
         )
 
     @staticmethod
-    def get_goal(db: Session, goal_id: UUID) -> Goal:
-        goal = GoalRepository.get_by_id(db, goal_id)
+    def get_goal(
+        db: Session,
+        *,
+        current_user: User,
+        goal_id: UUID,
+    ) -> Goal:
+        goal = GoalRepository.get_by_id(
+            db,
+            user_id=current_user.id,
+            goal_id=goal_id,
+        )
         if goal is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -40,15 +53,33 @@ class GoalService:
         return goal
 
     @staticmethod
-    def create_goal(db: Session, payload: GoalCreate) -> GoalResponse:
-        user_id = GoalRepository.get_or_create_demo_user_id(db)
-        goal = GoalRepository.create(db, user_id=user_id, payload=payload)
+    def create_goal(
+        db: Session,
+        *,
+        current_user: User,
+        payload: GoalCreate,
+    ) -> GoalResponse:
+        goal = GoalRepository.create(
+            db,
+            user_id=current_user.id,
+            payload=payload,
+        )
         goal = GoalService._sync_completion_status(db, goal)
         return GoalService._to_goal_response(goal)
 
     @staticmethod
-    def update_goal(db: Session, goal_id: UUID, payload: GoalUpdate) -> GoalResponse:
-        goal = GoalService.get_goal(db, goal_id)
+    def update_goal(
+        db: Session,
+        *,
+        current_user: User,
+        goal_id: UUID,
+        payload: GoalUpdate,
+    ) -> GoalResponse:
+        goal = GoalService.get_goal(
+            db,
+            current_user=current_user,
+            goal_id=goal_id,
+        )
 
         effective_target = payload.target_minor if payload.target_minor is not None else int(goal.target_minor)
         effective_current = payload.current_minor if payload.current_minor is not None else int(goal.current_minor)
@@ -64,8 +95,18 @@ class GoalService:
         return GoalService._to_goal_response(updated_goal)
 
     @staticmethod
-    def top_up_goal(db: Session, goal_id: UUID, payload: GoalTopUp) -> GoalResponse:
-        goal = GoalService.get_goal(db, goal_id)
+    def top_up_goal(
+        db: Session,
+        *,
+        current_user: User,
+        goal_id: UUID,
+        payload: GoalTopUp,
+    ) -> GoalResponse:
+        goal = GoalService.get_goal(
+            db,
+            current_user=current_user,
+            goal_id=goal_id,
+        )
 
         new_current_minor = min(int(goal.current_minor) + payload.amount_minor, int(goal.target_minor))
 
@@ -76,8 +117,17 @@ class GoalService:
         return GoalService._to_goal_response(updated_goal)
 
     @staticmethod
-    def delete_goal(db: Session, goal_id: UUID) -> None:
-        goal = GoalService.get_goal(db, goal_id)
+    def delete_goal(
+        db: Session,
+        *,
+        current_user: User,
+        goal_id: UUID,
+    ) -> None:
+        goal = GoalService.get_goal(
+            db,
+            current_user=current_user,
+            goal_id=goal_id,
+        )
         GoalRepository.delete(db, goal=goal)
 
     @staticmethod
@@ -107,7 +157,6 @@ class GoalService:
         is_completed = int(goal.current_minor) >= int(goal.target_minor)
 
         days_remaining = max((goal.deadline - today).days, 0)
-
         remaining_minor = max(int(goal.target_minor) - int(goal.current_minor), 0)
 
         months_remaining = GoalService._months_remaining(today, goal.deadline)
