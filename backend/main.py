@@ -1,13 +1,22 @@
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from api.v1.api import api_router
 from core.config import settings
+
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 app = FastAPI(
     title=settings.app_name,
     debug=settings.debug,
     version="1.0.0",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
 )
 
 app.add_middleware(
@@ -21,8 +30,40 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 
 
-@app.get("/", tags=["root"])
-def root() -> dict[str, str]:
-    return {
-        "message": f"{settings.app_name} is running"
-    }
+def _configure_frontend_static() -> None:
+    if not FRONTEND_DIST.is_dir():
+        return
+    assets_dir = FRONTEND_DIST / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+
+_configure_frontend_static()
+
+
+@app.get("/", tags=["root"], response_model=None)
+def root():
+    index = FRONTEND_DIST / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+    return {"message": f"{settings.app_name} is running"}
+
+
+@app.get("/{full_path:path}", tags=["root"], response_model=None)
+def spa_fallback(full_path: str):
+    """Serve built Vite assets or index.html for client-side routes."""
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if not FRONTEND_DIST.is_dir():
+        raise HTTPException(status_code=404, detail="Frontend build not found")
+
+    candidate = FRONTEND_DIST / full_path
+    if candidate.is_file():
+        return FileResponse(candidate)
+
+    index = FRONTEND_DIST / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+
+    raise HTTPException(status_code=404, detail="Not found")

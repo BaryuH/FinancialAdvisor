@@ -1,0 +1,9 @@
+# Optional Blueprint: one Web Service serves UI + API (see Dockerfile).
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: fainance-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
