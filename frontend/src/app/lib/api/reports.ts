@@ -5,36 +5,44 @@ export type ReportPeriod = "week" | "month" | "quarter";
 export interface ReportsSummary {
   income_minor: number;
   expense_minor: number;
-  net_minor: number;
-  savings_rate_percent: number;
+  balance_minor: number;
+  savings_ratio_percent: number;
 }
 
 export interface ReportsExpenseByCategoryItem {
   category_id: string;
   category_name: string;
   amount_minor: number;
-  percent: number;
+  color_hex: string;
+  percentage: number;
 }
 
 export interface ReportsIncomeExpensePoint {
-  label: string;
+  bucket_label: string;
   income_minor: number;
   expense_minor: number;
 }
 
 export interface ReportsCashFlowPoint {
-  label: string;
-  net_minor: number;
+  date: string;
+  balance_minor: number;
+}
+
+export interface ReportsInsights {
+  top_expense_category: string | null;
+  top_expense_amount_minor: number;
+  average_daily_expense_minor: number;
 }
 
 export interface ReportsOverviewResponse {
   period: ReportPeriod;
-  anchor_date: string;
+  start_date: string;
+  end_date: string;
   summary: ReportsSummary;
   expense_by_category: ReportsExpenseByCategoryItem[];
   income_expense_series: ReportsIncomeExpensePoint[];
   cash_flow_series: ReportsCashFlowPoint[];
-  insights: string[];
+  insights: ReportsInsights;
 }
 
 export function getReportsOverview(period: ReportPeriod, anchorDate: string) {

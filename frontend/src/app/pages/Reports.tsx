@@ -33,6 +33,7 @@ type IncomeExpenseChartItem = {
 
 type CashFlowChartItem = {
   date: string;
+  label: string;
   balance: number;
 };
 
@@ -95,6 +96,15 @@ export function Reports() {
     }).format(toSafeNumber(amount));
   };
 
+  const formatShortDateLabel = (isoDate: string) => {
+    const parsed = new Date(isoDate);
+    if (Number.isNaN(parsed.getTime())) return isoDate;
+    return parsed.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+  };
+
   const shortFormatCurrency = (amount: number) => {
     const safeAmount = toSafeNumber(amount);
     if (safeAmount >= 1000000) {
@@ -110,20 +120,20 @@ export function Reports() {
 
       const summaryIncome = toSafeNumber(response.summary?.income_minor);
       const summaryExpense = toSafeNumber(response.summary?.expense_minor);
-      const summaryNet = toSafeNumber(response.summary?.net_minor);
-      const summarySavingsRate = toSafeNumber(response.summary?.savings_rate_percent);
+      const summaryBalance = toSafeNumber(response.summary?.balance_minor);
+      const summarySavingsRate = toSafeNumber(response.summary?.savings_ratio_percent);
 
       setTotalIncome(summaryIncome);
       setTotalExpense(summaryExpense);
-      setBalance(summaryNet);
+      setBalance(summaryBalance);
       setSavingsRatePercent(summarySavingsRate);
 
       const mappedExpenseByCategory = (response.expense_by_category ?? [])
         .map((item, index) => ({
           name: String(item.category_name ?? "").trim(),
           value: toSafeNumber(item.amount_minor),
-          percent: toSafeNumber(item.percent),
-          color: BAR_COLORS[index % BAR_COLORS.length],
+          percent: toSafeNumber(item.percentage),
+          color: typeof item.color_hex === "string" && item.color_hex.trim() !== "" ? item.color_hex : BAR_COLORS[index % BAR_COLORS.length],
         }))
         .filter((item) => item.name !== "" && item.value > 0);
 
@@ -131,7 +141,7 @@ export function Reports() {
 
       const mappedIncomeExpenseSeries = (response.income_expense_series ?? [])
         .map((item) => ({
-          label: String(item.label ?? "").trim(),
+          label: String(item.bucket_label ?? "").trim(),
           income: toSafeNumber(item.income_minor),
           expense: toSafeNumber(item.expense_minor),
         }))
@@ -141,14 +151,33 @@ export function Reports() {
 
       const mappedCashFlowSeries = (response.cash_flow_series ?? [])
         .map((item) => ({
-          date: String(item.label ?? "").trim(),
-          balance: toSafeNumber(item.net_minor),
+          date: String(item.date ?? "").trim(),
+          label: formatShortDateLabel(String(item.date ?? "").trim()),
+          balance: toSafeNumber(item.balance_minor),
         }))
-        .filter((item) => item.date !== "" && item.balance !== 0);
+        .filter((item) => item.date !== "");
 
-      setCashFlowData(mappedCashFlowSeries);
+      const hasAnyNonZeroBalance = mappedCashFlowSeries.some((item) => item.balance !== 0);
+      const filteredCashFlowSeries = hasAnyNonZeroBalance
+        ? mappedCashFlowSeries.filter((item) => item.balance !== 0)
+        : [];
 
-      setInsights(Array.isArray(response.insights) ? response.insights.filter(Boolean) : []);
+      setCashFlowData(filteredCashFlowSeries);
+
+      const nextInsights: string[] = [];
+      if (response.insights?.top_expense_category && toSafeNumber(response.insights.top_expense_amount_minor) > 0) {
+        nextInsights.push(
+          `Danh mục chi tiêu lớn nhất: ${response.insights.top_expense_category} (${formatCurrency(
+            toSafeNumber(response.insights.top_expense_amount_minor)
+          )}).`
+        );
+      }
+      if (toSafeNumber(response.insights?.average_daily_expense_minor) > 0) {
+        nextInsights.push(
+          `Chi tiêu trung bình mỗi ngày: ${formatCurrency(toSafeNumber(response.insights.average_daily_expense_minor))}.`
+        );
+      }
+      setInsights(nextInsights);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Không tải được báo cáo");
     } finally {
@@ -495,7 +524,7 @@ export function Reports() {
               {cashFlowData.map((item) => (
                 <div key={item.date}>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-slate-100">{item.date}</p>
+                    <p className="text-sm text-slate-100">{item.label}</p>
                     <p className={`text-sm ${item.balance >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
                       {formatCurrency(item.balance)}
                     </p>

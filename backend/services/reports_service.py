@@ -160,14 +160,12 @@ class ReportsService:
                 net_map[transaction.transaction_date] -= amount
 
         result: list[CashFlowSeriesItem] = []
-        running_balance = 0
         cursor = start_date
         while cursor <= end_date:
-            running_balance += net_map[cursor]
             result.append(
                 CashFlowSeriesItem(
                     date=cursor,
-                    balance_minor=running_balance,
+                    balance_minor=net_map[cursor],
                 )
             )
             cursor += timedelta(days=1)
