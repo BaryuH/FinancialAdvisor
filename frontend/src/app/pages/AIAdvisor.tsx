@@ -29,26 +29,36 @@ type ChatMessage = {
 type ExpandState = Record<
   string,
   {
+    technical: boolean;
     fundamental: boolean;
-    investment: boolean;
   }
 >;
 
 const markdownComponents = {
   h1: ({ children }: any) => (
-    <h1 className="mb-3 mt-5 text-2xl font-bold text-foreground">{children}</h1>
+    <h1 className="mb-3 mt-5 break-words text-2xl font-bold text-foreground">
+      {children}
+    </h1>
   ),
   h2: ({ children }: any) => (
-    <h2 className="mb-3 mt-5 text-xl font-bold text-foreground">{children}</h2>
+    <h2 className="mb-3 mt-5 break-words text-xl font-bold text-foreground">
+      {children}
+    </h2>
   ),
   h3: ({ children }: any) => (
-    <h3 className="mb-2 mt-4 text-lg font-bold text-foreground">{children}</h3>
+    <h3 className="mb-2 mt-4 break-words text-lg font-bold text-foreground">
+      {children}
+    </h3>
   ),
   h4: ({ children }: any) => (
-    <h4 className="mb-2 mt-4 text-base font-semibold text-foreground">{children}</h4>
+    <h4 className="mb-2 mt-4 break-words text-base font-semibold text-foreground">
+      {children}
+    </h4>
   ),
   p: ({ children }: any) => (
-    <p className="my-2 text-sm leading-7 text-foreground/95">{children}</p>
+    <p className="my-2 break-words text-sm leading-7 text-foreground/95">
+      {children}
+    </p>
   ),
   strong: ({ children }: any) => (
     <strong className="font-semibold text-foreground">{children}</strong>
@@ -57,38 +67,46 @@ const markdownComponents = {
     <em className="italic text-foreground">{children}</em>
   ),
   ul: ({ children }: any) => (
-    <ul className="my-3 list-disc space-y-2 pl-5 text-foreground/95">{children}</ul>
+    <ul className="my-3 list-disc space-y-2 pl-5 text-foreground/95">
+      {children}
+    </ul>
   ),
   ol: ({ children }: any) => (
-    <ol className="my-3 list-decimal space-y-2 pl-5 text-foreground/95">{children}</ol>
+    <ol className="my-3 list-decimal space-y-2 pl-5 text-foreground/95">
+      {children}
+    </ol>
   ),
   li: ({ children }: any) => (
-    <li className="text-sm leading-7">{children}</li>
+    <li className="break-words text-sm leading-7">{children}</li>
   ),
   hr: () => <hr className="my-5 border-border/80" />,
   blockquote: ({ children }: any) => (
-    <blockquote className="my-4 rounded-r-lg border-l-4 border-emerald-500/60 bg-muted/55 px-4 py-3 italic text-muted-foreground">
+    <blockquote className="my-4 overflow-hidden rounded-r-lg border-l-4 border-emerald-500/60 bg-muted/55 px-4 py-3 italic text-muted-foreground">
       {children}
     </blockquote>
   ),
   code({ inline, children }: any) {
     if (inline) {
       return (
-        <code className="rounded bg-muted px-1.5 py-0.5 text-[13px] text-emerald-700 dark:text-emerald-300">
+        <code className="break-all rounded bg-muted px-1.5 py-0.5 text-[13px] text-emerald-700 dark:text-emerald-300">
           {children}
         </code>
       );
     }
 
     return (
-      <pre className="my-4 overflow-x-auto rounded-xl border border-border/80 bg-muted/45 p-4">
-        <code className="text-sm text-emerald-700 dark:text-emerald-300">{children}</code>
-      </pre>
+      <div className="my-4 max-w-full overflow-x-auto rounded-xl border border-border/80 bg-muted/45">
+        <pre className="min-w-0 p-4">
+          <code className="whitespace-pre-wrap break-words text-sm text-emerald-700 dark:text-emerald-300">
+            {children}
+          </code>
+        </pre>
+      </div>
     );
   },
   table: ({ children }: any) => (
-    <div className="my-5 overflow-x-auto">
-      <table className="w-full overflow-hidden rounded-xl border border-border/80 text-sm">
+    <div className="my-5 max-w-full overflow-x-auto">
+      <table className="w-full min-w-[520px] rounded-xl border border-border/80 text-sm">
         {children}
       </table>
     </div>
@@ -112,7 +130,7 @@ const markdownComponents = {
 
 function MarkdownBlock({ content }: { content: string }) {
   return (
-    <div className="max-w-none">
+    <div className="min-w-0 max-w-full overflow-hidden">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
         {content}
       </ReactMarkdown>
@@ -134,22 +152,24 @@ function ReportSection({
   if (!content || !content.trim()) return null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/80 bg-muted/35">
+    <div className="w-full overflow-hidden rounded-xl border border-border/80 bg-muted/35">
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-muted/80"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-muted/80"
       >
-        <span className="text-sm font-medium text-foreground">{title}</span>
+        <span className="min-w-0 break-words text-sm font-medium text-foreground">
+          {title}
+        </span>
         {isOpen ? (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
         )}
       </button>
 
       {isOpen && (
-        <div className="border-t border-border/70 px-4 py-3">
+        <div className="overflow-hidden border-t border-border/70 px-4 py-3">
           <MarkdownBlock content={content} />
         </div>
       )}
@@ -167,12 +187,14 @@ function InlineReportSection({
   if (!content || !content.trim()) return null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/80 bg-muted/35">
+    <div className="w-full overflow-hidden rounded-xl border border-border/80 bg-muted/35">
       <div className="border-b border-border/70 px-4 py-3">
-        <span className="text-sm font-medium text-foreground">{title}</span>
+        <span className="block break-words text-sm font-medium text-foreground">
+          {title}
+        </span>
       </div>
 
-      <div className="px-4 py-3">
+      <div className="overflow-hidden px-4 py-3">
         <MarkdownBlock content={content} />
       </div>
     </div>
@@ -245,13 +267,13 @@ export function AIAdvisor() {
 
   const toggleSection = (
     messageId: string,
-    section: "fundamental" | "investment",
+    section: "technical" | "fundamental",
   ) => {
     setExpanded((prev) => ({
       ...prev,
       [messageId]: {
+        technical: prev[messageId]?.technical ?? false,
         fundamental: prev[messageId]?.fundamental ?? false,
-        investment: prev[messageId]?.investment ?? false,
         [section]: !(prev[messageId]?.[section] ?? false),
       },
     }));
@@ -313,8 +335,8 @@ ${question}
       setExpanded((prev) => ({
         ...prev,
         [assistantMessageId]: {
+          technical: false,
           fundamental: false,
-          investment: false,
         },
       }));
     } catch (error) {
@@ -347,7 +369,7 @@ ${question}
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-md pb-24">
+    <div className="mx-auto min-h-screen max-w-md overflow-x-hidden pb-24">
       <div className="mt-3 px-4">
         <Button
           type="button"
@@ -363,8 +385,8 @@ ${question}
       <div className="mt-3 space-y-4 px-4">
         {messages.map((message, index) => {
           const messageExpand = expanded[message.id] ?? {
+            technical: false,
             fundamental: false,
-            investment: false,
           };
 
           return (
@@ -377,35 +399,42 @@ ${question}
                 delay: Math.min(index * 0.02, 0.12),
                 ease: [0.22, 1, 0.36, 1],
               }}
+              className="min-w-0 max-w-full"
             >
               <Card
-                className={`border p-4 ${
+                className={`min-w-0 max-w-full overflow-hidden border p-4 ${
                   message.role === "user"
                     ? "border-cyan-500/35 bg-cyan-500/8"
                     : "border-border/80 bg-card/95"
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
                     {message.role === "user" ? (
-                      <User className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+                      <User className="h-4 w-4 shrink-0 text-cyan-600 dark:text-cyan-300" />
                     ) : (
-                      <Bot className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                      <Bot className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
                     )}
-                  </div>
-
-                  <div className="flex-1">
-                    <p className="mb-2 text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {message.role === "user" ? "Bạn" : "AI Advisor"}
                     </p>
+                  </div>
 
-                    {message.role === "assistant" ? (
-                      <div className="space-y-3">
-                        <MarkdownBlock content={message.content} />
+                  {message.role === "assistant" ? (
+                    <div className="w-full space-y-3">
+                      <MarkdownBlock content={message.content} />
 
+                      <div className="mx-auto w-full max-w-[calc(100%-8px)] space-y-3">
                         <InlineReportSection
+                          title="Tư vấn đầu tư"
+                          content={message.investmentAnalysis}
+                        />
+
+                        <ReportSection
                           title="Báo cáo kỹ thuật"
                           content={message.technicalAnalysis}
+                          isOpen={messageExpand.technical}
+                          onToggle={() => toggleSection(message.id, "technical")}
                         />
 
                         <ReportSection
@@ -414,20 +443,13 @@ ${question}
                           isOpen={messageExpand.fundamental}
                           onToggle={() => toggleSection(message.id, "fundamental")}
                         />
-
-                        <ReportSection
-                          title="Tư vấn đầu tư"
-                          content={message.investmentAnalysis}
-                          isOpen={messageExpand.investment}
-                          onToggle={() => toggleSection(message.id, "investment")}
-                        />
                       </div>
-                    ) : (
-                      <div className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-                        {message.content}
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words pl-0 text-sm leading-6 text-foreground">
+                      {message.content}
+                    </div>
+                  )}
                 </div>
               </Card>
             </motion.div>
@@ -442,22 +464,25 @@ ${question}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="min-w-0 max-w-full"
             >
-              <Card className="border-border/80 bg-card/95 p-4">
-                <div className="flex items-start gap-3">
-                  <Bot className="mt-0.5 h-4 w-4 text-emerald-600 dark:text-emerald-300" />
-                  <div className="flex-1">
-                    <p className="mb-2 text-xs text-muted-foreground">AI Advisor</p>
-                    <div className="inline-flex items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm leading-6 text-emerald-700 dark:text-emerald-200">
-                      <span className="animate-pulse">AI đang phân tích</span>
-                      <LoadingDots />
-                    </div>
+              <Card className="min-w-0 max-w-full overflow-hidden border-border/80 bg-card/95 p-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                    <p className="text-xs text-muted-foreground">AI Advisor</p>
+                  </div>
+
+                  <div className="inline-flex max-w-full items-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm leading-6 text-emerald-700 dark:text-emerald-200">
+                    <span className="animate-pulse">AI đang phân tích</span>
+                    <LoadingDots />
                   </div>
                 </div>
               </Card>
             </motion.div>
           )}
         </AnimatePresence>
+
         <div ref={endRef} />
       </div>
 
