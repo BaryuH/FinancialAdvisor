@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -8,6 +9,7 @@ import {
   User,
   ChevronDown,
   ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -27,7 +29,6 @@ type ChatMessage = {
 type ExpandState = Record<
   string,
   {
-    technical: boolean;
     fundamental: boolean;
     investment: boolean;
   }
@@ -156,6 +157,28 @@ function ReportSection({
   );
 }
 
+function InlineReportSection({
+  title,
+  content,
+}: {
+  title: string;
+  content: string | null | undefined;
+}) {
+  if (!content || !content.trim()) return null;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/80 bg-muted/35">
+      <div className="border-b border-border/70 px-4 py-3">
+        <span className="text-sm font-medium text-foreground">{title}</span>
+      </div>
+
+      <div className="px-4 py-3">
+        <MarkdownBlock content={content} />
+      </div>
+    </div>
+  );
+}
+
 function buildAssistantContent(result: {
   reply?: string | null;
   technical_analysis?: string | null;
@@ -175,7 +198,7 @@ function buildAssistantContent(result: {
   ].some((part) => Boolean(part && part.trim()));
 
   if (hasDetailedReport) {
-    return "### Trả lời trọng tâm\nĐã tạo báo cáo chi tiết. Chọn mục bên dưới để xem.";
+    return "### Trả lời trọng tâm";
   }
 
   return "AI Advisor chưa trả về nội dung phù hợp.";
@@ -199,6 +222,7 @@ function LoadingDots() {
 }
 
 export function AIAdvisor() {
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -221,17 +245,25 @@ export function AIAdvisor() {
 
   const toggleSection = (
     messageId: string,
-    section: "technical" | "fundamental" | "investment",
+    section: "fundamental" | "investment",
   ) => {
     setExpanded((prev) => ({
       ...prev,
       [messageId]: {
-        technical: prev[messageId]?.technical ?? false,
         fundamental: prev[messageId]?.fundamental ?? false,
         investment: prev[messageId]?.investment ?? false,
         [section]: !(prev[messageId]?.[section] ?? false),
       },
     }));
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate("/", { replace: true });
   };
 
   const handleSend = async () => {
@@ -281,7 +313,6 @@ ${question}
       setExpanded((prev) => ({
         ...prev,
         [assistantMessageId]: {
-          technical: false,
           fundamental: false,
           investment: false,
         },
@@ -316,11 +347,22 @@ ${question}
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen pb-24">
+    <div className="mx-auto min-h-screen max-w-md pb-24">
+      <div className="mt-3 px-4">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleBack}
+          className="h-10 rounded-xl border-border/80 bg-card/90 px-3 text-sm"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Thoát khỏi AI Advisor
+        </Button>
+      </div>
+
       <div className="mt-3 space-y-4 px-4">
         {messages.map((message, index) => {
           const messageExpand = expanded[message.id] ?? {
-            technical: false,
             fundamental: false,
             investment: false,
           };
@@ -337,7 +379,7 @@ ${question}
               }}
             >
               <Card
-                className={`p-4 border ${
+                className={`border p-4 ${
                   message.role === "user"
                     ? "border-cyan-500/35 bg-cyan-500/8"
                     : "border-border/80 bg-card/95"
@@ -361,11 +403,9 @@ ${question}
                       <div className="space-y-3">
                         <MarkdownBlock content={message.content} />
 
-                        <ReportSection
+                        <InlineReportSection
                           title="Báo cáo kỹ thuật"
                           content={message.technicalAnalysis}
-                          isOpen={messageExpand.technical}
-                          onToggle={() => toggleSection(message.id, "technical")}
                         />
 
                         <ReportSection
@@ -436,8 +476,13 @@ ${question}
             disabled={isSending}
             className="border-border/80 bg-card text-foreground placeholder:text-muted-foreground"
           />
-          <Button onClick={handleSend} disabled={isSending || !input.trim()} size="icon" className="shrink-0">
-            <Send className="w-4 h-4" />
+          <Button
+            onClick={handleSend}
+            disabled={isSending || !input.trim()}
+            size="icon"
+            className="shrink-0"
+          >
+            <Send className="h-4 w-4" />
           </Button>
         </div>
       </motion.div>

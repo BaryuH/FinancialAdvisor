@@ -3,7 +3,13 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+
+def _validate_password_bytes(password: str) -> str:
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Password must not exceed 72 bytes in UTF-8.")
+    return password
 
 
 class AuthUserResponse(BaseModel):
@@ -22,10 +28,20 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=120)
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_password_bytes(value)
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_password_bytes(value)
 
 
 class RefreshTokenRequest(BaseModel):
