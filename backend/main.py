@@ -41,16 +41,16 @@ def _configure_frontend_static() -> None:
 _configure_frontend_static()
 
 
-@app.get("/", tags=["root"])
-def root() -> FileResponse | dict[str, str]:
+@app.get("/", tags=["root"], response_model=None)
+def root():
     index = FRONTEND_DIST / "index.html"
     if index.is_file():
         return FileResponse(index)
     return {"message": f"{settings.app_name} is running"}
 
 
-@app.get("/{full_path:path}", tags=["root"])
-def spa_fallback(full_path: str) -> FileResponse:
+@app.get("/{full_path:path}", tags=["root"], response_model=None)
+def spa_fallback(full_path: str):
     """Serve built Vite assets or index.html for client-side routes."""
     if full_path.startswith("api/"):
         raise HTTPException(status_code=404, detail="Not found")
