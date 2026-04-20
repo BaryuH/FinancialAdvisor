@@ -10,6 +10,11 @@ This repository is the implementation aligned with the POC document:
 - Reports and budgeting visuals
 - Tracker backend APIs for finance data management
 
+## Related / Collaboration Repositories
+
+- **FAINANCE Smart Input (ASR/OCR/LLM backend)**: [`https://github.com/BaryuH/FAINANCE-smart-input.git`](https://github.com/BaryuH/FAINANCE-smart-input.git)
+- **WDA2026 Slackers Financial Analysis Backend**: [`https://github.com/24520152-ben/WDA2026-Slackers-Financial-Analysis-Backend.git`](https://github.com/24520152-ben/WDA2026-Slackers-Financial-Analysis-Backend.git)
+
 ---
 
 ## 1) POC Scope vs Current Implementation
