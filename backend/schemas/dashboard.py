@@ -46,6 +46,7 @@ class DashboardRecentTransactionItem(BaseModel):
 class DashboardExpenseCalendarDay(BaseModel):
     date: date
     expense_minor: int
+    income_minor: int
 
 
 class DashboardSelectedDayItem(BaseModel):

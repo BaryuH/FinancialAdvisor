@@ -119,19 +119,19 @@ export function BottomNav({ currentPath }: BottomNavProps) {
             <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 mb-2 transition-transform active:scale-95">
               <Link to="/smart-input?mode=voice" className="flex items-center gap-3">
                 <Mic className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm font-medium">Giọng nói</span>
+                <span className="text-sm font-medium">{t("smartInput.voice")}</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 mb-2 transition-transform active:scale-95">
               <Link to="/smart-input?mode=manual" className="flex items-center gap-3">
                 <Keyboard className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm font-medium">Nhập thủ công</span>
+                <span className="text-sm font-medium">{t("smartInput.manual")}</span>
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 transition-transform active:scale-95">
               <Link to="/smart-input?mode=scan" className="flex items-center gap-3">
                 <ScanLine className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm font-medium">OCR / Quét hóa đơn</span>
+                <span className="text-sm font-medium">{t("smartInput.scan")}</span>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>

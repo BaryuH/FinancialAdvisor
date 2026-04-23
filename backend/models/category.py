@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.enums import CategoryFlowType
 from db.base import Base
+from utils.dates import get_now
 
 
 def enum_values(enum_cls):
@@ -53,11 +54,12 @@ class Category(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
+        onupdate=get_now,
         nullable=False,
     )
 

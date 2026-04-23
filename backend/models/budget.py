@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from utils.dates import get_now
 
 
 class Budget(Base):
@@ -43,11 +44,12 @@ class Budget(Base):
     limit_minor: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
+        onupdate=get_now,
         nullable=False,
     )
 

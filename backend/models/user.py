@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
+from utils.dates import get_now
 
 
 class User(Base):
@@ -33,11 +34,12 @@ class User(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
+        onupdate=get_now,
         nullable=False,
     )
 

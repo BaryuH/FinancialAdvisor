@@ -28,10 +28,10 @@ import {
   createOcrDraft, 
   updateSmartInputDraft,
   confirmSmartInputDraft,
-  SmartInputDraftResponse 
 } from "../lib/api/smartInput";
 import { listCategories, CategoryResponse } from "../lib/api/categories";
 import { createTransaction } from "../lib/api/transactions";
+import { getTodayString } from "../lib/dates";
 
 export function SmartInput() {
   const navigate = useNavigate();
@@ -39,6 +39,7 @@ export function SmartInput() {
   const [searchParams] = useSearchParams();
   
   const [mode, setMode] = useState<"idle" | "voice" | "scan" | "manual" | "camera">("idle");
+  const [transactionType, setTransactionType] = useState<"income" | "expense">("expense");
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
@@ -52,16 +53,11 @@ export function SmartInput() {
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getLocalDate = () => {
-    const now = new Date();
-    return new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split("T")[0];
-  };
-
   const [extractedData, setExtractedData] = useState({
     amount: "",
     description: "",
     categoryId: "",
-    date: getLocalDate(),
+    date: getTodayString(),
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
@@ -72,6 +68,12 @@ export function SmartInput() {
     if (initialMode === "scan") setMode("scan");
     else if (initialMode === "voice") setMode("voice");
     else if (initialMode === "manual") setMode("manual");
+    
+    const initialType = searchParams.get("type");
+    if (initialType === "income" || initialType === "expense") {
+      setTransactionType(initialType as "income" | "expense");
+      if (!initialMode) setMode("manual");
+    }
     
     return () => stopCamera();
   }, [searchParams]);
@@ -91,6 +93,7 @@ export function SmartInput() {
       mediaRecorder.stream.getTracks().forEach(track => track.stop());
     }
     setMode("idle");
+    setTransactionType("expense");
     setIsRecording(false);
     setIsProcessing(false);
     setCurrentDraftId(null);
@@ -99,7 +102,7 @@ export function SmartInput() {
       amount: "", 
       description: "", 
       categoryId: "", 
-      date: getLocalDate() 
+      date: getTodayString() 
     });
     setFormErrors({});
     chunksRef.current = [];
@@ -112,28 +115,18 @@ export function SmartInput() {
     return "text-2xl";
   };
 
-  // Improved Industry Standard WAV Encoder
   const bufferToWav = (buffer: AudioBuffer) => {
     const numOfChan = buffer.numberOfChannels;
     const length = buffer.length * numOfChan * 2 + 44;
     const arrayBuffer = new ArrayBuffer(length);
     const view = new DataView(arrayBuffer);
     let pos = 0;
-
     const setUint16 = (data: number) => { view.setUint16(pos, data, true); pos += 2; };
     const setUint32 = (data: number) => { view.setUint32(pos, data, true); pos += 4; };
-
-    setUint32(0x46464952); // "RIFF"
-    setUint32(length - 8);
-    setUint32(0x45564157); // "WAVE"
-    setUint32(0x20746d66); // "fmt "
-    setUint32(16); setUint16(1); setUint16(numOfChan);
-    setUint32(buffer.sampleRate);
-    setUint32(buffer.sampleRate * 2 * numOfChan);
-    setUint16(numOfChan * 2); setUint16(16);
-    setUint32(0x61746164); // "data"
-    setUint32(length - pos - 4);
-
+    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+    setUint32(0x20746d66); setUint32(16); setUint16(1); setUint16(numOfChan);
+    setUint32(buffer.sampleRate); setUint32(buffer.sampleRate * 2 * numOfChan);
+    setUint16(numOfChan * 2); setUint16(16); setUint32(0x61746164); setUint32(length - pos - 4);
     for (let i = 0; i < buffer.length; i++) {
       for (let channel = 0; channel < numOfChan; channel++) {
         let sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
@@ -149,11 +142,7 @@ export function SmartInput() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
-      
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         if (chunksRef.current.length === 0) return;
         const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType });
@@ -174,7 +163,6 @@ export function SmartInput() {
         } catch (error) { toast.error("AI không nhận diện được âm thanh."); }
         finally { setIsProcessing(false); stream.getTracks().forEach(t => t.stop()); }
       };
-
       recorder.start();
       setMediaRecorder(recorder);
       setIsRecording(true);
@@ -201,11 +189,11 @@ export function SmartInput() {
     canvas.width = videoRef.current.videoWidth;
     canvas.height = videoRef.current.videoHeight;
     canvas.getContext("2d")?.drawImage(videoRef.current, 0, 0);
-    const dataUrl = canvas.toDataURL("image/jpeg");
+    const dataUrl = canvas.toDataURL("image/webp", 0.7);
     setUploadedImage(dataUrl);
     canvas.toBlob(async (blob) => {
-      if (blob) await processOcrFile(new File([blob], "capture.jpg", { type: "image/jpeg" }));
-    }, "image/jpeg", 0.9);
+      if (blob) await processOcrFile(new File([blob], "capture.webp", { type: "image/webp" }));
+    }, "image/webp", 0.7);
     stopCamera();
   };
 
@@ -239,12 +227,7 @@ export function SmartInput() {
     if (!extractedData.amount || parseInt(extractedData.amount) <= 0) errors.amount = true;
     if (!extractedData.description.trim()) errors.description = true;
     if (!extractedData.categoryId) errors.categoryId = true;
-    
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      toast.error("Vui lòng điền đủ thông tin", { style: { zIndex: 10001 } });
-      return;
-    }
+    if (Object.keys(errors).length > 0) { setFormErrors(errors); toast.error("Vui lòng điền đủ thông tin"); return; }
 
     setIsProcessing(true);
     try {
@@ -253,7 +236,7 @@ export function SmartInput() {
           amount_minor: parseInt(extractedData.amount),
           description: extractedData.description,
           category_id: extractedData.categoryId,
-          type: "expense",
+          type: transactionType,
           transaction_date: extractedData.date,
           source: "manual"
         });
@@ -265,31 +248,30 @@ export function SmartInput() {
         });
         await confirmSmartInputDraft(currentDraftId, { transaction_date: extractedData.date });
       }
-      toast.success("Đã ghi chép xong!");
+      toast.success(t("smartInput.complete"));
       setTimeout(() => navigate("/transactions"), 800);
     } catch (error) { toast.error("Lỗi khi lưu"); }
     finally { setIsProcessing(false); }
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-950 text-slate-100 flex flex-col px-6 pt-8 pb-12 relative overflow-hidden">
-      <div className="absolute top-[-5%] -left-1/4 w-full h-1/2 bg-emerald-500/10 blur-[100px] rounded-full pointer-events-none" />
+    <div className="max-w-md mx-auto min-h-screen text-slate-100 flex flex-col px-6 pt-8 pb-12 relative overflow-hidden font-sans">
       
       <div className="mb-8 relative z-10 text-left">
         <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-          {mode === "idle" ? "Chào bạn!" : mode === "voice" ? "Ghi âm" : mode === "camera" ? "Chụp ảnh" : mode === "manual" ? "Tự ghi chép" : "Quét biên lai"}
+          {mode === "idle" ? t("smartInput.greeting") : mode === "voice" ? t("smartInput.voice") : mode === "camera" ? t("smartInput.camera") : mode === "manual" ? t("smartInput.manual") : t("smartInput.scan")}
         </motion.h1>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-slate-400 mt-1 text-base">
-          {mode === "idle" ? "Hôm nay bạn chi tiêu gì thế?" : "Hãy hoàn thiện các thông tin bên dưới."}
+          {mode === "idle" ? t("smartInput.subtitle") : "Hãy hoàn thiện các thông tin bên dưới."}
         </motion.p>
       </div>
 
       <AnimatePresence mode="wait">
         {mode === "idle" && (
           <motion.div key="idle-menu" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.02 }} className="grid grid-cols-1 gap-4 z-10">
-            <ActionCard icon={<Mic className="w-7 h-7 text-emerald-400" />} title="Ghi âm nhanh" desc="Vừa chi gì đó? Hãy nói cho mình nhé." onClick={() => setMode("voice")} color="border-emerald-500/20 bg-emerald-500/5" />
-            <ActionCard icon={<Camera className="w-7 h-7 text-cyan-400" />} title="Quét hóa đơn" desc="Chụp ảnh biên lai, AI xử lý trong tích tắc." onClick={() => setMode("scan")} color="border-cyan-500/20 bg-cyan-500/5" />
-            <ActionCard icon={<Keyboard className="w-7 h-7 text-amber-400" />} title="Tự ghi chép" desc="Chủ động nhập chính xác từng con số." onClick={() => setMode("manual")} color="border-amber-500/20 bg-amber-500/5" />
+            <ActionCard icon={<Mic className="w-7 h-7 text-emerald-400" />} title={t("smartInput.voice")} desc="Vừa chi gì đó? Hãy nói cho mình nhé." onClick={() => setMode("voice")} color="border-emerald-500/20 bg-emerald-500/5" />
+            <ActionCard icon={<Camera className="w-7 h-7 text-cyan-400" />} title={t("smartInput.scan")} desc="Chụp ảnh biên lai, AI xử lý trong tích tắc." onClick={() => setMode("scan")} color="border-cyan-500/20 bg-cyan-500/5" />
+            <ActionCard icon={<Keyboard className="w-7 h-7 text-amber-400" />} title={t("smartInput.manual")} desc="Chủ động nhập chính xác từng con số." onClick={() => setMode("manual")} color="border-amber-500/20 bg-amber-500/5" />
           </motion.div>
         )}
 
@@ -303,7 +285,7 @@ export function SmartInput() {
             </div>
             <div className="text-center">
               <p className="text-lg font-medium mb-1">{isRecording ? "Mình đang nghe..." : "Sẵn sàng"}</p>
-              <Button variant="ghost" className="text-slate-500 hover:text-slate-300" onClick={resetAll}>Quay lại</Button>
+              <Button variant="ghost" className="text-slate-500 hover:text-slate-300" onClick={resetAll}>{t("common.back")}</Button>
             </div>
           </motion.div>
         )}
@@ -313,7 +295,7 @@ export function SmartInput() {
              <ActionBox icon={<Camera className="w-8 h-8 text-cyan-400" />} label="Mở Camera" onClick={startCamera} />
              <ActionBox icon={<Upload className="w-8 h-8 text-emerald-400" />} label="Tải ảnh lên" onClick={() => fileInputRef.current?.click()} />
              <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
-             <div className="col-span-2 text-center mt-4"><Button variant="ghost" className="text-slate-500" onClick={resetAll}>Quay lại</Button></div>
+             <div className="col-span-2 text-center mt-4"><Button variant="ghost" className="text-slate-500" onClick={resetAll}>{t("common.back")}</Button></div>
           </motion.div>
         )}
 
@@ -332,41 +314,60 @@ export function SmartInput() {
 
         {(currentDraftId || mode === "manual") && (
           <motion.div key="receipt-mode" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 z-10">
-            {uploadedImage && <div className="w-full h-40 rounded-[2.5rem] overflow-hidden border-2 border-slate-900 shadow-xl relative"><img src={uploadedImage} alt="receipt" className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 to-transparent" /></div>}
-            <Card className="overflow-hidden bg-slate-900/80 border-slate-800 shadow-2xl rounded-[3rem] backdrop-blur-md relative">
-              <div className="p-1 bg-gradient-to-r from-emerald-500/50 via-cyan-500/50 to-amber-500/50" />
+            {uploadedImage && (
+              <div className="w-full max-h-64 rounded-[2.5rem] overflow-hidden border-2 border-slate-900 shadow-xl relative bg-slate-900/30 flex items-center justify-center p-4">
+                <img src={uploadedImage} alt="receipt" className="max-w-full max-h-full object-contain rounded-xl" />
+              </div>
+            )}
+            
+            {mode === "manual" && (
+              <div className="flex bg-slate-900/50 p-1 rounded-2xl border border-slate-800">
+                <button onClick={() => { setTransactionType("expense"); setExtractedData(prev => ({ ...prev, categoryId: "" })); }} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${transactionType === "expense" ? "bg-rose-500 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"}`}>{t("smartInput.expense")}</button>
+                <button onClick={() => { setTransactionType("income"); setExtractedData(prev => ({ ...prev, categoryId: "" })); }} className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${transactionType === "income" ? "bg-emerald-500 text-slate-950 shadow-lg" : "text-slate-500 hover:text-slate-300"}`}>{t("smartInput.income")}</button>
+              </div>
+            )}
+
+            <Card className="overflow-hidden bg-slate-900/80 border-slate-800 shadow-2xl rounded-[3rem] backdrop-blur-md relative text-left">
+              <div className={`p-1 bg-gradient-to-r ${transactionType === "expense" ? "from-rose-500/50 to-orange-500/50" : "from-emerald-500/50 to-cyan-500/50"}`} />
               <div className="p-8 pt-10 space-y-8 text-left">
-                <div className="flex items-center justify-between"><div className="flex items-center gap-2 text-emerald-400"><Sparkles className="w-4 h-4 animate-pulse" /><span className="text-[10px] font-black uppercase tracking-[0.2em]">{mode === "manual" ? "Tự ghi chép" : "AI Phân tích"}</span></div><div className="w-12 h-px bg-slate-800" /></div>
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center gap-2 ${transactionType === "expense" ? "text-rose-400" : "text-emerald-400"}`}>
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">{mode === "manual" ? "Tự ghi chép" : "AI Phân tích"}</span>
+                  </div>
+                </div>
                 <div className="space-y-8">
-                  <div className={`space-y-2 text-center transition-all ${formErrors.amount ? 'scale-105' : ''}`}>
-                    <Label className={`text-[10px] font-bold uppercase tracking-[0.3em] ${formErrors.amount ? 'text-red-400' : 'text-slate-500'}`}>GIÁ TRỊ THANH TOÁN</Label>
+                  <div className="space-y-2 text-center">
+                    <Label className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">{t("common.amount")}</Label>
                     <div className="flex items-center justify-center gap-2">
-                       <span className={`text-2xl font-light ${formErrors.amount ? 'text-red-400' : 'text-emerald-500'}`}>₫</span>
-                       <input type="number" autoFocus={mode === "manual"} className={`bg-transparent font-black text-white focus:outline-none w-auto max-w-[280px] text-center transition-all duration-300 ${getAmountFontSize(extractedData.amount.length)} ${formErrors.amount ? 'text-red-400' : ''}`} value={extractedData.amount} placeholder="0" onChange={(e) => {setExtractedData({...extractedData, amount: e.target.value}); setFormErrors({...formErrors, amount: false});}} />
+                       <span className={`text-2xl font-light ${transactionType === "expense" ? "text-rose-400" : "text-emerald-500"}`}>₫</span>
+                       <input type="number" autoFocus={mode === "manual"} className={`bg-transparent font-black text-white focus:outline-none w-auto max-w-[280px] text-center transition-all duration-300 ${getAmountFontSize(extractedData.amount.length)}`} value={extractedData.amount} placeholder={t("smartInput.placeholder.amount")} onChange={(e) => setExtractedData({...extractedData, amount: e.target.value})} />
                     </div>
                   </div>
                   <div className="space-y-5">
                     <div className="space-y-1">
-                      <Label className={`text-[10px] font-bold uppercase tracking-[0.2em] ${formErrors.description ? 'text-red-400' : 'text-slate-600'}`}>Ghi chép</Label>
-                      <div className={`flex items-center gap-3 border-b py-2 ${formErrors.description ? 'border-red-500/50' : 'border-slate-800'}`}>
-                        <PenLine className="w-4 h-4 text-slate-700" /><input className="bg-transparent text-lg text-slate-200 focus:outline-none w-full" value={extractedData.description} onChange={(e) => {setExtractedData({...extractedData, description: e.target.value}); setFormErrors({...formErrors, description: false});}} placeholder="Vừa chi gì thế?..." />
+                      <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">{t("common.description")}</Label>
+                      <div className="flex items-center gap-3 border-b py-2 border-slate-800">
+                        <PenLine className="w-4 h-4 text-slate-700" /><input className="bg-transparent text-lg text-slate-200 focus:outline-none w-full" value={extractedData.description} onChange={(e) => setExtractedData({...extractedData, description: e.target.value})} placeholder={transactionType === "expense" ? "Vừa chi gì thế?..." : "Vừa thu tiền gì thế?..."} />
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label className={`text-[10px] font-bold uppercase tracking-[0.2em] ${formErrors.categoryId ? 'text-red-400' : 'text-slate-600'}`}>Phân loại</Label>
-                      <Select value={extractedData.categoryId} onValueChange={(v) => {setExtractedData({...extractedData, categoryId: v}); setFormErrors({...formErrors, categoryId: false});}}>
-                        <SelectTrigger className={`bg-slate-950/40 border-2 h-14 rounded-2xl ${formErrors.categoryId ? 'border-red-500/30' : 'border-slate-800'}`}><SelectValue placeholder="Chọn danh mục" /></SelectTrigger>
-                        <SelectContent className="bg-slate-950 border-slate-800 text-slate-200 rounded-2xl shadow-2xl z-[10002]">
-                          {categories.filter(c => c.flow_type === "expense").map((cat) => (<SelectItem key={cat.id} value={cat.id} className="h-12 rounded-xl focus:bg-emerald-500/10 focus:text-emerald-400">{cat.name}</SelectItem>))}
+                      <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">{t("common.category")}</Label>
+                      <Select value={extractedData.categoryId} onValueChange={(v) => setExtractedData({...extractedData, categoryId: v})}>
+                        <SelectTrigger className="bg-slate-950/40 border-2 h-14 rounded-2xl border-slate-800"><SelectValue placeholder="Chọn danh mục" /></SelectTrigger>
+                        <SelectContent className="bg-slate-950 border-slate-800 text-slate-200 rounded-2xl shadow-2xl">
+                          {categories.filter(c => c.flow_type === transactionType).map((cat) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-1 text-left"><Label className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-600 px-1">Ngày giao dịch</Label><div className="flex items-center gap-3 border-b py-2 border-slate-800"><CalendarIcon className="w-4 h-4 text-slate-700" /><input type="date" className="bg-transparent text-lg text-slate-200 focus:outline-none w-full [color-scheme:dark]" value={extractedData.date} onChange={(e) => setExtractedData({...extractedData, date: e.target.value})} /></div></div>
+                    <div className="space-y-1"><Label className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-600 px-1">{t("common.date")}</Label><div className="flex items-center gap-3 border-b py-2 border-slate-800"><CalendarIcon className="w-4 h-4 text-slate-700" /><input type="date" className="bg-transparent text-lg text-slate-200 focus:outline-none w-full [color-scheme:dark]" value={extractedData.date} onChange={(e) => setExtractedData({...extractedData, date: e.target.value})} /></div></div>
                   </div>
                 </div>
                 <div className="pt-6 flex flex-col gap-4">
-                  <Button onClick={handleSave} disabled={isProcessing} className="h-16 rounded-[2rem] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-lg shadow-2xl active:scale-[0.98]">{isProcessing ? "ĐANG LƯU..." : "HOÀN TẤT GHI CHÉP"}</Button>
-                  <button onClick={resetAll} className="text-slate-600 hover:text-red-400 text-[11px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors"><X className="w-3 h-3" /> Hủy bỏ & Làm lại</button>
+                  <Button onClick={handleSave} disabled={isProcessing} className={`h-16 rounded-[2rem] font-black text-lg shadow-2xl active:scale-[0.98] ${transactionType === "expense" ? "bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/20" : "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20"}`}>
+                    {isProcessing ? t("common.loading").toUpperCase() : t("common.done").toUpperCase()}
+                  </Button>
+                  <button onClick={resetAll} className="text-slate-600 hover:text-red-400 text-[11px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors"><X className="w-3 h-3" /> {t("smartInput.reset")}</button>
                 </div>
               </div>
             </Card>
@@ -378,7 +379,7 @@ export function SmartInput() {
         {isProcessing && !currentDraftId && mode !== "manual" && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-2xl">
              <div className="w-24 h-24 relative"><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="absolute inset-0 border-4 border-emerald-500/10 border-t-emerald-500 rounded-full" /><Sparkles className="absolute inset-0 m-auto w-10 h-10 text-emerald-400 animate-pulse" /></div>
-            <p className="mt-8 text-emerald-400 font-black tracking-[0.3em] animate-pulse text-sm uppercase">AI Đang Xử Lý...</p>
+            <p className="mt-8 text-emerald-400 font-black tracking-[0.3em] animate-pulse text-sm uppercase">{t("smartInput.processing")}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -398,7 +399,7 @@ function ActionCard({ icon, title, desc, onClick, color }: any) {
 
 function ActionBox({ icon, label, onClick }: any) {
   return (
-    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onClick} className="flex flex-col items-center justify-center p-8 rounded-[2.5rem] border-2 border-dashed border-slate-900 bg-slate-900/30 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all w-full aspect-square text-center">
+    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onClick} className="flex flex-col items-center justify-center p-8 rounded-[2.5rem] border-2 border-dashed border-slate-900 bg-slate-900/30 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all w-full aspect-square text-center text-left">
       <div className="w-16 h-16 rounded-2xl bg-slate-950/60 flex items-center justify-center mb-4 shadow-xl border border-white/5">{icon}</div>
       <span className="text-xs font-black uppercase tracking-widest text-slate-400">{label}</span>
     </motion.button>

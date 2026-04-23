@@ -204,11 +204,27 @@ class DashboardService:
         stmt = (
             select(
                 Transaction.transaction_date,
-                func.coalesce(func.sum(Transaction.amount_minor), 0).label("expense_minor"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Transaction.type == TransactionType.INCOME, Transaction.amount_minor),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("income_minor"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (Transaction.type == TransactionType.EXPENSE, Transaction.amount_minor),
+                            else_=0,
+                        )
+                    ),
+                    0,
+                ).label("expense_minor"),
             )
             .where(
                 Transaction.user_id == user_id,
-                Transaction.type == TransactionType.EXPENSE,
                 Transaction.transaction_date >= month_start,
                 Transaction.transaction_date <= month_end,
             )
@@ -220,6 +236,7 @@ class DashboardService:
         days = [
             DashboardExpenseCalendarDay(
                 date=row.transaction_date,
+                income_minor=int(row.income_minor),
                 expense_minor=int(row.expense_minor),
             )
             for row in rows

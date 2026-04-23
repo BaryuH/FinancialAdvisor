@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -10,6 +10,7 @@ from models.goal import Goal
 from models.user import User
 from repositories.goal_repository import GoalRepository
 from schemas.goal import GoalCreate, GoalListResponse, GoalResponse, GoalTopUp, GoalUpdate
+from utils.dates import get_now, get_today
 
 
 class GoalService:
@@ -135,7 +136,7 @@ class GoalService:
         is_completed = int(goal.current_minor) >= int(goal.target_minor)
 
         if is_completed and goal.completed_at is None:
-            goal.completed_at = datetime.now(timezone.utc)
+            goal.completed_at = get_now()
             db.add(goal)
             db.commit()
             db.refresh(goal)
@@ -152,7 +153,7 @@ class GoalService:
 
     @staticmethod
     def _to_goal_response(goal: Goal) -> GoalResponse:
-        today = date.today()
+        today = get_today()
         progress_percent = round((int(goal.current_minor) / int(goal.target_minor)) * 100, 2) if int(goal.target_minor) > 0 else 0.0
         is_completed = int(goal.current_minor) >= int(goal.target_minor)
 

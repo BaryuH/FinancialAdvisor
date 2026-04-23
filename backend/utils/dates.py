@@ -1,7 +1,19 @@
 from __future__ import annotations
 
 from calendar import monthrange
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+
+VIETNAM_TZ = timezone(timedelta(hours=7))
+
+
+def get_now() -> datetime:
+    """Returns the current datetime in UTC+7."""
+    return datetime.now(VIETNAM_TZ)
+
+
+def get_today() -> date:
+    """Returns the current date in UTC+7."""
+    return get_now().date()
 
 
 def parse_year_month(month_str: str) -> date:
