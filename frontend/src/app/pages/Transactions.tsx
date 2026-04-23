@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router";
+import { motion } from "motion/react";
 import {
   ApiCategory,
   ApiTransaction,
@@ -118,9 +119,11 @@ export function Transactions() {
 
   useEffect(() => {
     if (searchParams.get("add") !== "1") return;
+    
     const typeParam = searchParams.get("type");
     const initialType: "income" | "expense" =
       typeParam === "income" ? "income" : "expense";
+    
     setEditingTransaction(null);
     setFormData({
       type: initialType,
@@ -129,8 +132,15 @@ export function Transactions() {
       description: "",
       date: new Date().toISOString().split("T")[0],
     });
-    setIsDialogOpen(true);
-    navigate("/transactions", { replace: true });
+
+    // Delay slightly to let page transition finish
+    const timer = setTimeout(() => {
+      setIsDialogOpen(true);
+      // Clean up URL without triggering redundant effects immediately
+      navigate("/transactions", { replace: true });
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, [searchParams, navigate]);
 
   const resetForm = () => {
@@ -358,122 +368,6 @@ export function Transactions() {
           </div>
         )}
       </div>
-
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}
-      >
-        <DialogTrigger asChild>
-          <div
-            className="fixed left-1/2 w-full max-w-md -translate-x-1/2 px-4 flex justify-end pointer-events-none"
-            style={{ bottom: "calc(84px + env(safe-area-inset-bottom))" }}
-          >
-            <Button
-              className="w-14 h-14 rounded-full shadow-lg pointer-events-auto"
-              size="icon"
-              onClick={() => setIsDialogOpen(true)}
-            >
-              <Plus className="w-6 h-6" />
-            </Button>
-          </div>
-        </DialogTrigger>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingTransaction ? "Sửa giao dịch" : "Thêm giao dịch mới"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Loại giao dịch</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <Button
-                  type="button"
-                  variant={formData.type === "expense" ? "default" : "outline"}
-                  onClick={() => setFormData({ ...formData, type: "expense", categoryId: "" })}
-                >
-                  Chi tiêu
-                </Button>
-                <Button
-                  type="button"
-                  variant={formData.type === "income" ? "default" : "outline"}
-                  onClick={() => setFormData({ ...formData, type: "income", categoryId: "" })}
-                >
-                  Thu nhập
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="amount">Số tiền</Label>
-              <Input
-                id="amount"
-                type="number"
-                placeholder="0"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="category">Danh mục</Label>
-              <Select
-                value={formData.categoryId}
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn danh mục" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="description">Mô tả</Label>
-              <Input
-                id="description"
-                placeholder="Nhập mô tả"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="date">Ngày</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  setIsDialogOpen(false);
-                  resetForm();
-                }}
-              >
-                Hủy
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                {isSubmitting ? "Đang lưu..." : editingTransaction ? "Cập nhật" : "Thêm"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
