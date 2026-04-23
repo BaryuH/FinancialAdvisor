@@ -25,14 +25,14 @@ router = APIRouter(prefix="/smart-input", tags=["smart-input"])
     summary="Create voice smart-input draft",
 )
 def create_voice_draft(
-    payload: VoiceDraftCreate,
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SmartInputDraftResponse:
     return SmartInputService.create_voice_draft(
         db,
         current_user=current_user,
-        payload=payload,
+        file=file,
     )
 
 

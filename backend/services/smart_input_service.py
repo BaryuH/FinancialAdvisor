@@ -3,12 +3,14 @@ from __future__ import annotations
 import os
 import re
 from datetime import date
-from typing import Iterable
+from typing import Any, Iterable
 from uuid import UUID
 
+import httpx
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from core.config import settings
 from core.enums import (
     CategoryFlowType,
     SmartInputMode,
@@ -39,26 +41,53 @@ class SmartInputService:
         db: Session,
         *,
         current_user: User,
-        payload: VoiceDraftCreate,
+        file: UploadFile,
     ) -> SmartInputDraftResponse:
+        # Call External ASR API
+        ai_result = SmartInputService._call_external_ai_api(
+            url=settings.asr_api_url,
+            file=file,
+        )
+
+        raw_text = ai_result.get("raw_text") or ""
+        ai_data = ai_result.get("result", {})
+        
+        # Priority: AI Result -> Manual Extraction
+        parsed_amount_minor = ai_data.get("price")
+        if parsed_amount_minor is None:
+            parsed_amount_minor = SmartInputService._extract_amount_minor(raw_text)
+            
+        parsed_description = ai_data.get("note") or raw_text.strip()
+        
         categories = SmartInputService._get_expense_categories(
             db,
             user_id=current_user.id,
         )
-        suggested_category = SmartInputService._suggest_category(payload.raw_text, categories)
-        parsed_amount_minor = SmartInputService._extract_amount_minor(payload.raw_text)
-        parsed_description = payload.raw_text.strip()
+        
+        # Try to match category from AI or suggest from text
+        suggested_category = None
+        ai_category_name = (ai_data.get("category") or "").strip().lower()
+        
+        # Define allowed categories for matching
+        allowed_cats = ["ăn uống", "mua sắm", "di chuyển", "giải trí", "nhà cửa", "y tế"]
+        
+        if ai_category_name in allowed_cats:
+            suggested_category = next((c for c in categories if c.name.lower() == ai_category_name), None)
+        
+        if not suggested_category:
+            # Fallback to keyword suggestion or default to 'Khác'
+            suggested_category = SmartInputService._suggest_category(raw_text, categories)
 
         draft = SmartInputDraft(
             user_id=current_user.id,
             mode=SmartInputMode.VOICE,
             status=SmartInputStatus.DRAFT,
-            raw_text=payload.raw_text.strip(),
+            raw_text=raw_text,
             parsed_type=TransactionType.EXPENSE,
             parsed_amount_minor=parsed_amount_minor,
-            parsed_description=parsed_description,
+            parsed_description=parsed_description[:255] if parsed_description else None,
             suggested_category_id=suggested_category.id if suggested_category else None,
-            parser_payload={"source": "voice_stub_parser"},
+            parser_payload={"source": "external_asr_api", "ai_response": ai_result},
         )
         created = SmartInputRepository.create(db, draft)
         return SmartInputDraftResponse.model_validate(created)
@@ -71,15 +100,39 @@ class SmartInputService:
         file: UploadFile,
         hint_text: str | None = None,
     ) -> SmartInputDraftResponse:
+        # Call External OCR API
+        ai_result = SmartInputService._call_external_ai_api(
+            url=settings.ocr_api_url,
+            file=file,
+        )
+
+        raw_text = ai_result.get("raw_text") or ""
+        ai_data = ai_result.get("result", {})
+
+        # Priority: AI Result -> Manual Extraction
+        parsed_amount_minor = ai_data.get("price")
+        if parsed_amount_minor is None:
+            parsed_amount_minor = SmartInputService._extract_amount_minor(raw_text)
+
+        parsed_description = ai_data.get("note") or (hint_text if hint_text else raw_text.strip())
+
         categories = SmartInputService._get_expense_categories(
             db,
             user_id=current_user.id,
         )
 
-        base_name = os.path.splitext(file.filename or "receipt")[0].strip()
-        raw_text = hint_text.strip() if hint_text else base_name
-        suggested_category = SmartInputService._suggest_category(raw_text, categories)
-        parsed_amount_minor = SmartInputService._extract_amount_minor(raw_text)
+        # Try to match category from AI or suggest from text
+        suggested_category = None
+        ai_category_name = (ai_data.get("category") or "").strip().lower()
+        
+        allowed_cats = ["ăn uống", "mua sắm", "di chuyển", "giải trí", "nhà cửa", "y tế"]
+        
+        if ai_category_name in allowed_cats:
+            suggested_category = next((c for c in categories if c.name.lower() == ai_category_name), None)
+        
+        if not suggested_category:
+            final_suggest_text = f"{hint_text} {raw_text}" if hint_text else raw_text
+            suggested_category = SmartInputService._suggest_category(final_suggest_text, categories)
 
         draft = SmartInputDraft(
             user_id=current_user.id,
@@ -89,18 +142,37 @@ class SmartInputService:
             source_file_ref=file.filename,
             parsed_type=TransactionType.EXPENSE,
             parsed_amount_minor=parsed_amount_minor,
-            parsed_description=raw_text if raw_text else (base_name or None),
+            parsed_description=parsed_description[:255] if parsed_description else None,
             suggested_category_id=suggested_category.id if suggested_category else None,
-            merchant_name=base_name or None,
-            confidence_percent=85 if hint_text else None,
+            merchant_name=ai_data.get("note")[:150] if ai_data.get("note") else None,
+            confidence_percent=None,
             parser_payload={
-                "source": "ocr_stub_parser",
+                "source": "external_ocr_api",
                 "filename": file.filename,
-                "content_type": file.content_type,
+                "ai_response": ai_result
             },
         )
         created = SmartInputRepository.create(db, draft)
         return SmartInputDraftResponse.model_validate(created)
+
+    @staticmethod
+    def _call_external_ai_api(url: str, file: UploadFile) -> dict[str, Any]:
+        try:
+            file_content = file.file.read()
+            file.file.seek(0)
+
+            files = {"file": (file.filename, file_content, file.content_type)}
+            
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(url, files=files)
+                response.raise_for_status()
+                return response.json()
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"AI Service error: {str(e)}",
+            )
 
     @staticmethod
     def get_draft(
