@@ -13,7 +13,7 @@ function getApiBaseUrl(): string {
   const fromEnv = viteEnv?.VITE_API_BASE_URL?.replace(/\/$/, "");
   if (fromEnv) return fromEnv;
   // Local dev: Vite on another origin than the API
-  if (import.meta.env.DEV) return "http://127.0.0.1:8000/api/v1";
+  if (import.meta.env.DEV) return "http://127.0.0.1:8001/api/v1";
   // Production: same host as the SPA (e.g. FastAPI serves frontend + API — no VITE_* needed)
   if (typeof window !== "undefined") return `${window.location.origin}/api/v1`;
   return "http://127.0.0.1:8000/api/v1";

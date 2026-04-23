@@ -18,6 +18,12 @@ from core.enums import (
     TransactionSource,
     TransactionType,
 )
+
+# External AI API Configuration
+MAIN_URL = "http://n3.ckey.vn:1707"
+OCR_API_URL = f"{MAIN_URL}/api/process/image"
+ASR_API_URL =  f"{MAIN_URL}/api/process/audio"
+
 from models.category import Category
 from models.smart_input_draft import SmartInputDraft
 from models.transaction import Transaction
@@ -45,7 +51,7 @@ class SmartInputService:
     ) -> SmartInputDraftResponse:
         # Call External ASR API
         ai_result = SmartInputService._call_external_ai_api(
-            url=settings.asr_api_url,
+            url=ASR_API_URL,
             file=file,
         )
 
@@ -54,8 +60,12 @@ class SmartInputService:
         
         # Priority: AI Result -> Manual Extraction
         parsed_amount_minor = ai_data.get("price")
-        if parsed_amount_minor is None:
+        if parsed_amount_minor is None or parsed_amount_minor <= 0:
             parsed_amount_minor = SmartInputService._extract_amount_minor(raw_text)
+        
+        # Ensure it's None if still 0 or less to satisfy DB check constraint
+        if parsed_amount_minor is not None and parsed_amount_minor <= 0:
+            parsed_amount_minor = None
             
         parsed_description = ai_data.get("note") or raw_text.strip()
         
@@ -111,8 +121,12 @@ class SmartInputService:
 
         # Priority: AI Result -> Manual Extraction
         parsed_amount_minor = ai_data.get("price")
-        if parsed_amount_minor is None:
+        if parsed_amount_minor is None or parsed_amount_minor <= 0:
             parsed_amount_minor = SmartInputService._extract_amount_minor(raw_text)
+        
+        # Ensure it's None if still 0 or less to satisfy DB check constraint
+        if parsed_amount_minor is not None and parsed_amount_minor <= 0:
+            parsed_amount_minor = None
 
         parsed_description = ai_data.get("note") or (hint_text if hint_text else raw_text.strip())
 
@@ -161,17 +175,32 @@ class SmartInputService:
             file_content = file.file.read()
             file.file.seek(0)
 
-            files = {"file": (file.filename, file_content, file.content_type)}
+            # Detect content type or default to octet-stream
+            content_type = file.content_type or "application/octet-stream"
+            files = {"file": (file.filename, file_content, content_type)}
             
-            with httpx.Client(timeout=30.0) as client:
+            with httpx.Client(timeout=45.0) as client:
                 response = client.post(url, files=files)
-                response.raise_for_status()
+                
+                if response.status_code != 200:
+                    print(f"AI API Error ({response.status_code}): {response.text}")
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"AI service returned error {response.status_code}"
+                    )
+                    
                 return response.json()
 
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="AI service timed out"
+            )
         except Exception as e:
+            print(f"Internal AI API Call Error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"AI Service error: {str(e)}",
+                detail=f"AI Service communication error: {str(e)}",
             )
 
     @staticmethod
