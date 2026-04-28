@@ -30,25 +30,24 @@ export function Layout() {
 
   const pageTransition = reducedMotion
     ? { duration: 0 }
-    : { duration: 0.14, ease: [0.22, 1, 0.36, 1] as const };
+    : { type: "spring", stiffness: 450, damping: 35, mass: 0.8 };
 
   return (
     <div
       className={`min-h-screen bg-transparent ${hideBottomNav ? "" : "pb-[calc(5.5rem+env(safe-area-inset-bottom))]"}`}
     >
       {!hideAppHeader && <AppHeader />}
-      <AnimatePresence initial={false} mode="wait">
+      <main className="relative overflow-hidden">
         <motion.div
           key={location.pathname}
-          initial={reducedMotion ? false : { opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={reducedMotion ? undefined : { opacity: 0, y: -3 }}
-          transition={pageTransition}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.12, ease: "linear" }}
           className="min-h-0"
         >
           <Outlet />
         </motion.div>
-      </AnimatePresence>
+      </main>
       {!hideBottomNav && <BottomNav currentPath={location.pathname} />}
     </div>
   );

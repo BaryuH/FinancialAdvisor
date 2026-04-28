@@ -1,22 +1,130 @@
 # Dependencies
+.vscode/Số dư:
+-2.017.000 đ
+Dòng tiền:
+-2.017.000 đ
+Thu:
+0 đ
+Chi:
++2.017.000 đ
 node_modules/
+backend/.venv/
+backend/__pycache__/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+__pypackages__/
 
 # Build
 dist/
 dist-ssr/
+backend/dist/
+build/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+/site
+*.tsbuildinfo
 
 # Local env
 .env
+.env.local
 .env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
 
-# Logs / cache
-npm-debug.log*
+# Logs
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Cache
 .cache/
+.eslintcache
+.stylelintcache
+.prettiercache
+.parcel-cache
+.next
+.nuxt
+.vercel
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.webassets-cache
+.scrapy
+.ipynb_checkpoints
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.qt_log
 
 # Editor / OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Others
+profile_default/
+ipython_config.py
+celerybeat-schedule
+celerybeat.pid
+*.sage.py
+.spyderproject
+.spyproject
+.ropeproject
+cython_debug/

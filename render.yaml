@@ -1,5 +1,15 @@
-# Optional Blueprint: one Web Service serves UI + API (see Dockerfile).
+# Render Blueprint: Web + Postgres
 # https://render.com/docs/blueprint-spec
+#
+# First-time DB: in the Render Postgres shell (or any psql), run in order:
+#   backend/sql/001_init_schema.sql, 002_seed_categories.sql, 003_auth_schema.sql
+# Deploy: Dashboard → New → Blueprint → connect this repo; push updates apply when synced.
+
+databases:
+  - name: fainance-db
+    plan: free
+    databaseName: fainance_db
+
 services:
   - type: web
     name: fainance-api
@@ -7,3 +17,15 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fainance-db
+          property: connectionString
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: JWT_SECRET_KEY
+        generateValue: true

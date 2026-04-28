@@ -124,7 +124,7 @@ export function AppHeader() {
                   }}
                 >
                   <LogOut className="h-4 w-4" />
-                  {locale === "vi" ? "Đăng xuất" : "Logout"}
+                  {t("nav.logout") || (locale === "vi" ? "Đăng xuất" : "Logout")}
                 </Button>
               </div>
             </SheetContent>

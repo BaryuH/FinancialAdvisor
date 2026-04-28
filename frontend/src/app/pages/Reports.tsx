@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { TrendingUp, TrendingDown, DollarSign, Lightbulb, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Lightbulb, ChevronLeft, ChevronRight, CalendarDays, BarChart3, PieChart, Activity, Target, Zap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Calendar } from "../components/ui/calendar";
+import { format, addWeeks, addMonths, addQuarters, parseISO, isValid } from "date-fns";
+import { vi } from "date-fns/locale";
 import {
   Cell,
   ResponsiveContainer,
@@ -12,11 +14,14 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   CartesianGrid,
+  AreaChart,
+  Area,
 } from "recharts";
 import { toast } from "sonner";
 import { getReportsOverview, ReportPeriod } from "../lib/api/reports";
+import { getTodayString } from "../lib/dates";
+import { useLocale } from "../lib/locale";
 
 type ExpenseCategoryChartItem = {
   name: string;
@@ -32,24 +37,23 @@ type IncomeExpenseChartItem = {
 };
 
 type CashFlowChartItem = {
-  date: string;
   label: string;
   balance: number;
 };
 
-const BAR_COLORS = ["#22c55e", "#06b6d4", "#8b5cf6", "#f59e0b", "#ef4444", "#3b82f6"];
-
-const PERIOD_LABEL: Record<ReportPeriod, string> = {
-  week: "Tuần",
-  month: "Tháng",
-  quarter: "Quý",
-};
+const BAR_COLORS = ["#10b981", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#06b6d4"];
 
 export function Reports() {
+  const { t, locale } = useLocale();
   const [period, setPeriod] = useState<ReportPeriod>("month");
-  const today = new Date().toISOString().slice(0, 10);
-  const [anchorDate, setAnchorDate] = useState(today);
+  const [anchorDate, setAnchorDate] = useState(getTodayString());
   const [isLoading, setIsLoading] = useState(true);
+
+  const PERIOD_LABEL: Record<ReportPeriod, string> = {
+    week: t("nav.week") || "Tuần",
+    month: t("nav.month") || "Tháng",
+    quarter: t("nav.quarter") || "Quý",
+  };
 
   const [totalIncome, setTotalIncome] = useState(0);
   const [totalExpense, setTotalExpense] = useState(0);
@@ -60,29 +64,9 @@ export function Reports() {
   const [incomeExpenseSeries, setIncomeExpenseSeries] = useState<IncomeExpenseChartItem[]>([]);
   const [cashFlowData, setCashFlowData] = useState<CashFlowChartItem[]>([]);
   const [insights, setInsights] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
-  const chartFontFamily =
-    "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji";
-
-  const axisTick = {
-    fill: "#94a3b8",
-    fontSize: 12,
-    fontFamily: chartFontFamily,
-  } as const;
-
-  const tooltipStyle = {
-    backgroundColor: "#0b1220",
-    border: "1px solid rgba(148, 163, 184, 0.25)",
-    borderRadius: 10,
-    fontFamily: chartFontFamily,
-    fontSize: 12,
-  } as const;
-
-  const legendStyle = {
-    color: "#cbd5e1",
-    fontFamily: chartFontFamily,
-    fontSize: 12,
-  } as const;
+  const chartFontFamily = "Inter, ui-sans-serif, system-ui";
 
   const toSafeNumber = (value: unknown) => {
     const num = Number(value);
@@ -90,27 +74,26 @@ export function Reports() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(toSafeNumber(amount));
-  };
-
-  const formatShortDateLabel = (isoDate: string) => {
-    const parsed = new Date(isoDate);
-    if (Number.isNaN(parsed.getTime())) return isoDate;
-    return parsed.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-    });
+    return new Intl.NumberFormat("vi-VN").format(toSafeNumber(amount)) + " đ";
   };
 
   const shortFormatCurrency = (amount: number) => {
-    const safeAmount = toSafeNumber(amount);
-    if (safeAmount >= 1000000) {
-      return `${(safeAmount / 1000000).toFixed(1)}tr`;
+    const val = toSafeNumber(amount);
+    const absVal = Math.abs(val);
+    const sign = val < 0 ? "-" : "";
+    if (absVal >= 1000000) return `${sign}${(absVal / 1000000).toFixed(1)}tr`;
+    if (absVal >= 1000) return `${sign}${(absVal / 1000).toFixed(0)}k`;
+    return `${sign}${absVal}`;
+  };
+
+  const safeParseDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    try {
+      const d = parseISO(dateStr);
+      return isValid(d) ? d : new Date();
+    } catch {
+      return new Date();
     }
-    return `${(safeAmount / 1000).toFixed(0)}k`;
   };
 
   const loadReports = async (selectedPeriod: ReportPeriod, selectedAnchorDate: string) => {
@@ -118,68 +101,52 @@ export function Reports() {
       setIsLoading(true);
       const response = await getReportsOverview(selectedPeriod, selectedAnchorDate);
 
-      const summaryIncome = toSafeNumber(response.summary?.income_minor);
-      const summaryExpense = toSafeNumber(response.summary?.expense_minor);
-      const summaryBalance = toSafeNumber(response.summary?.balance_minor);
-      const summarySavingsRate = toSafeNumber(response.summary?.savings_ratio_percent);
+      if (!response) return;
 
-      setTotalIncome(summaryIncome);
-      setTotalExpense(summaryExpense);
-      setBalance(summaryBalance);
-      setSavingsRatePercent(summarySavingsRate);
+      const summary = response.summary || {};
+      setTotalIncome(toSafeNumber(summary.income_minor));
+      setTotalExpense(toSafeNumber(summary.expense_minor));
+      setBalance(toSafeNumber(summary.balance_minor));
+      setSavingsRatePercent(toSafeNumber(summary.savings_ratio_percent));
+      setDateRange({ 
+        start: response.start_date || selectedAnchorDate, 
+        end: response.end_date || selectedAnchorDate 
+      });
 
-      const mappedExpenseByCategory = (response.expense_by_category ?? [])
-        .map((item, index) => ({
-          name: String(item.category_name ?? "").trim(),
+      setExpenseByCategory(
+        (response.expense_by_category || []).map((item, i) => ({
+          name: item.category_name || "Khác",
           value: toSafeNumber(item.amount_minor),
           percent: toSafeNumber(item.percentage),
-          color: typeof item.color_hex === "string" && item.color_hex.trim() !== "" ? item.color_hex : BAR_COLORS[index % BAR_COLORS.length],
+          color: item.color_hex || BAR_COLORS[i % BAR_COLORS.length],
         }))
-        .filter((item) => item.name !== "" && item.value > 0);
+      );
 
-      setExpenseByCategory(mappedExpenseByCategory);
-
-      const mappedIncomeExpenseSeries = (response.income_expense_series ?? [])
-        .map((item) => ({
-          label: String(item.bucket_label ?? "").trim(),
+      setIncomeExpenseSeries(
+        (response.income_expense_series || []).map((item) => ({
+          label: item.bucket_label || "",
           income: toSafeNumber(item.income_minor),
           expense: toSafeNumber(item.expense_minor),
         }))
-        .filter((item) => item.label !== "" && (item.income !== 0 || item.expense !== 0));
+      );
 
-      setIncomeExpenseSeries(mappedIncomeExpenseSeries);
-
-      const mappedCashFlowSeries = (response.cash_flow_series ?? [])
-        .map((item) => ({
-          date: String(item.date ?? "").trim(),
-          label: formatShortDateLabel(String(item.date ?? "").trim()),
+      setCashFlowData(
+        (response.cash_flow_series || []).map((item) => ({
+          label: item.date ? format(parseISO(item.date), "dd/MM") : "",
           balance: toSafeNumber(item.balance_minor),
         }))
-        .filter((item) => item.date !== "");
-
-      const hasAnyNonZeroBalance = mappedCashFlowSeries.some((item) => item.balance !== 0);
-      const filteredCashFlowSeries = hasAnyNonZeroBalance
-        ? mappedCashFlowSeries.filter((item) => item.balance !== 0)
-        : [];
-
-      setCashFlowData(filteredCashFlowSeries);
+      );
 
       const nextInsights: string[] = [];
-      if (response.insights?.top_expense_category && toSafeNumber(response.insights.top_expense_amount_minor) > 0) {
-        nextInsights.push(
-          `Danh mục chi tiêu lớn nhất: ${response.insights.top_expense_category} (${formatCurrency(
-            toSafeNumber(response.insights.top_expense_amount_minor)
-          )}).`
-        );
+      if (response.insights?.top_expense_category) {
+        nextInsights.push(`Bạn chi nhiều nhất cho ${response.insights.top_expense_category} (${formatCurrency(response.insights.top_expense_amount_minor)})`);
       }
       if (toSafeNumber(response.insights?.average_daily_expense_minor) > 0) {
-        nextInsights.push(
-          `Chi tiêu trung bình mỗi ngày: ${formatCurrency(toSafeNumber(response.insights.average_daily_expense_minor))}.`
-        );
+        nextInsights.push(`Trung bình mỗi ngày bạn tiêu ${formatCurrency(response.insights.average_daily_expense_minor)}`);
       }
       setInsights(nextInsights);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không tải được báo cáo");
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -189,411 +156,274 @@ export function Reports() {
     loadReports(period, anchorDate);
   }, [period, anchorDate]);
 
-  const averageIncomePerPoint = useMemo(() => {
-    if (incomeExpenseSeries.length === 0) return 0;
-    return totalIncome / incomeExpenseSeries.length;
-  }, [totalIncome, incomeExpenseSeries.length]);
-
-  const averageExpensePerPoint = useMemo(() => {
-    if (incomeExpenseSeries.length === 0) return 0;
-    return totalExpense / incomeExpenseSeries.length;
-  }, [totalExpense, incomeExpenseSeries.length]);
-
-  const savingsRateText = `${toSafeNumber(savingsRatePercent).toFixed(1)}%`;
-  const anchorDateLabel = useMemo(() => {
-    const date = new Date(anchorDate);
-    if (Number.isNaN(date.getTime())) return anchorDate;
-    const base = date.toLocaleDateString("vi-VN", {
-      weekday: "short",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-    return `${PERIOD_LABEL[period]} neo: ${base}`;
-  }, [anchorDate, period]);
-  const anchorDateDisplay = useMemo(() => {
-    const date = new Date(anchorDate);
-    if (Number.isNaN(date.getTime())) return anchorDate;
-    return date.toLocaleDateString("vi-VN");
-  }, [anchorDate]);
-  const selectedAnchorDate = useMemo(() => {
-    const date = new Date(anchorDate);
-    return Number.isNaN(date.getTime()) ? undefined : date;
-  }, [anchorDate]);
-
   const shiftAnchorDate = (offset: number) => {
-    const date = new Date(anchorDate);
-    if (Number.isNaN(date.getTime())) return;
-    const next = new Date(date);
-    if (period === "week") {
-      next.setDate(next.getDate() + offset * 7);
-    } else if (period === "month") {
-      next.setMonth(next.getMonth() + offset);
-    } else {
-      next.setMonth(next.getMonth() + offset * 3);
-    }
-    setAnchorDate(next.toISOString().slice(0, 10));
+    const current = safeParseDate(anchorDate);
+    let next: Date;
+    if (period === "week") next = addWeeks(current, offset);
+    else if (period === "month") next = addMonths(current, offset);
+    else next = addQuarters(current, offset);
+    setAnchorDate(format(next, "yyyy-MM-dd"));
+  };
+
+  const formattedRange = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) return "";
+    const s = safeParseDate(dateRange.start);
+    const e = safeParseDate(dateRange.end);
+    return `${format(s, "dd/MM")} - ${format(e, "dd/MM/yyyy")}`;
+  }, [dateRange]);
+
+  const chartTheme = {
+    font: "Inter, ui-sans-serif, system-ui",
+    tick: "#94a3b8",
+    grid: "#1e293b",
+    tooltipBg: "#0f172a",
+    tooltipBorder: "#1e293b"
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen pb-6">
-      <div className="px-4 pt-3 pb-4 text-foreground border-b border-border">
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="p-4 bg-card border border-border text-card-foreground">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              <p className="text-xs text-muted-foreground">Thu nhập</p>
+    <div className="max-w-md mx-auto min-h-screen pb-24 text-slate-100 font-sans">
+      <div className="px-6 pt-10 space-y-8">
+        <header className="space-y-1 text-left">
+          <div className="flex items-center justify-between">
+            <h1 className="text-4xl font-black tracking-tighter text-white">{t("page.reports")}</h1>
+            <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-emerald-500" />
             </div>
-            <p className="text-lg font-medium">{isLoading ? "..." : shortFormatCurrency(totalIncome)}</p>
-          </Card>
-
-          <Card className="p-4 bg-card border border-border text-card-foreground">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="w-4 h-4 text-destructive" />
-              <p className="text-xs text-muted-foreground">Chi tiêu</p>
-            </div>
-            <p className="text-lg font-medium">{isLoading ? "..." : shortFormatCurrency(totalExpense)}</p>
-          </Card>
-
-          <Card className="p-4 bg-card border border-border text-card-foreground">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-primary" />
-              <p className="text-xs text-muted-foreground">Còn lại</p>
-            </div>
-            <p className="text-lg font-medium">{isLoading ? "..." : shortFormatCurrency(balance)}</p>
-          </Card>
-        </div>
-      </div>
-
-      <div className="px-4 mt-6 space-y-4">
-        <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-md border-b border-border space-y-3">
-          <div className="flex gap-2">
-            <Button
-              variant={period === "week" ? "default" : "outline"}
-              onClick={() => setPeriod("week")}
-              className={
-                period === "week"
-                  ? "h-11 min-w-20 text-sm"
-                  : "h-11 min-w-20 text-sm border-border bg-card text-foreground hover:bg-muted"
-              }
-            >
-              Tuần
-            </Button>
-            <Button
-              variant={period === "month" ? "default" : "outline"}
-              onClick={() => setPeriod("month")}
-              className={
-                period === "month"
-                  ? "h-11 min-w-20 text-sm"
-                  : "h-11 min-w-20 text-sm border-border bg-card text-foreground hover:bg-muted"
-              }
-            >
-              Tháng
-            </Button>
-            <Button
-              variant={period === "quarter" ? "default" : "outline"}
-              onClick={() => setPeriod("quarter")}
-              className={
-                period === "quarter"
-                  ? "h-11 min-w-20 text-sm"
-                  : "h-11 min-w-20 text-sm border-border bg-card text-foreground hover:bg-muted"
-              }
-            >
-              Quý
-            </Button>
           </div>
+          <p className="text-emerald-500/60 text-xs font-black uppercase tracking-[0.2em]">{formattedRange}</p>
+        </header>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-10 w-10 shrink-0"
-                onClick={() => shiftAnchorDate(-1)}
-                aria-label="Lùi kỳ"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="relative flex-1">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-10 w-full justify-start gap-2 border-border bg-card px-3 text-left text-sm font-normal hover:bg-muted"
-                    >
-                      <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground">{anchorDateDisplay}</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={selectedAnchorDate}
-                      onSelect={(date) => {
-                        if (!date) return;
-                        setAnchorDate(date.toISOString().slice(0, 10));
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+        {/* Hero Stats */}
+        <div className="grid grid-cols-2 gap-4">
+           <Card className="p-6 bg-slate-900 border-slate-800 rounded-[2.5rem] shadow-2xl relative overflow-hidden group text-left">
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-500/5 blur-3xl rounded-full" />
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t("common.income")}</span>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-10 w-10 shrink-0"
-                onClick={() => shiftAnchorDate(1)}
-                aria-label="Tiến kỳ"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setAnchorDate(today)}
-                className="h-8 px-2 text-xs text-muted-foreground"
-              >
-                Về hôm nay
-              </Button>
-              <span className="text-xs text-muted-foreground">{anchorDateLabel}</span>
-            </div>
-          </div>
+              <p className="text-xl font-black text-white leading-none tracking-tight">{isLoading ? "..." : formatCurrency(totalIncome)}</p>
+           </Card>
+
+           <Card className="p-6 bg-slate-900 border-slate-800 rounded-[2.5rem] shadow-2xl relative overflow-hidden group text-left">
+              <div className="absolute -right-4 -top-4 w-20 h-20 bg-rose-500/5 blur-3xl rounded-full" />
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingDown className="w-4 h-4 text-rose-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t("common.expense")}</span>
+              </div>
+              <p className="text-xl font-black text-white leading-none tracking-tight">{isLoading ? "..." : formatCurrency(totalExpense)}</p>
+           </Card>
+
+           <Card className="p-6 bg-slate-900 border-slate-800 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-left border-white/5">
+              <div className="flex items-center gap-2 mb-3">
+                <Activity className="w-4 h-4 text-cyan-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t("reports.savingsRate")}</span>
+              </div>
+              <p className="text-2xl font-black text-white tracking-tighter">{isLoading ? "..." : `${savingsRatePercent.toFixed(0)}%`}</p>
+           </Card>
+
+           <Card className="p-6 bg-slate-900 border-slate-800 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-left border-white/5">
+              <div className="flex items-center gap-2 mb-3">
+                <DollarSign className="w-4 h-4 text-blue-400" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t("reports.netBalance")}</span>
+              </div>
+              <p className={`text-xl font-black ${balance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                {balance > 0 ? "+" : ""}{isLoading ? "..." : shortFormatCurrency(balance)}
+              </p>
+           </Card>
         </div>
 
-        <Card className="p-4 bg-slate-900 border-slate-800">
-          <h3 className="text-base mb-4 text-slate-100">Cơ cấu chi tiêu theo danh mục</h3>
-
-          {isLoading && <p className="text-sm text-slate-400">Đang tải dữ liệu...</p>}
-
-          {!isLoading && expenseByCategory.length === 0 && (
-            <p className="text-sm text-slate-400">Không có dữ liệu danh mục</p>
-          )}
-
-          {!isLoading && expenseByCategory.length > 0 && (
-            <>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart
-                  data={expenseByCategory.slice(0, 6)}
-                  layout="vertical"
-                  margin={{ top: 8, right: 12, bottom: 8, left: 12 }}
+        {/* Period Navigation */}
+        <div className="space-y-4">
+           <div className="bg-slate-900/50 p-1.5 rounded-[1.5rem] border border-slate-800 flex gap-1 shadow-inner">
+              {["week", "month", "quarter"].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p as ReportPeriod)}
+                  className={`flex-1 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${
+                    period === p ? "bg-emerald-500 text-slate-950 shadow-xl scale-100" : "text-slate-500 hover:text-slate-300 scale-95"
+                  }`}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.15)" />
-                  <XAxis
-                    type="number"
-                    tick={axisTick}
-                    tickFormatter={(value) => shortFormatCurrency(Number(value))}
-                    axisLine={{ stroke: "rgba(148, 163, 184, 0.25)" }}
-                    tickLine={{ stroke: "rgba(148, 163, 184, 0.25)" }}
+                  {t(`common.${p}`)}
+                </button>
+              ))}
+           </div>
+           <div className="flex items-center gap-3">
+              <Button variant="outline" size="icon" className="rounded-2xl w-14 h-14 border-slate-800 bg-slate-900/50 transition-all active:scale-90" onClick={() => shiftAnchorDate(-1)}><ChevronLeft /></Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="flex-1 h-14 rounded-2xl border-slate-800 bg-slate-900/50 font-black text-xs uppercase tracking-widest">
+                    <CalendarDays className="mr-3 w-5 h-5 text-emerald-500" />
+                    {format(safeParseDate(anchorDate), "dd MMM yyyy", { locale: locale === "vi" ? vi : undefined })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-slate-950 border-slate-800 shadow-3xl">
+                  <Calendar 
+                    mode="single" 
+                    selected={safeParseDate(anchorDate)} 
+                    onSelect={(d) => d && setAnchorDate(format(d, "yyyy-MM-dd"))} 
                   />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={90}
-                    tick={axisTick}
-                    axisLine={{ stroke: "rgba(148, 163, 184, 0.25)" }}
-                    tickLine={{ stroke: "rgba(148, 163, 184, 0.25)" }}
-                  />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    itemStyle={{ color: "#e2e8f0" }}
-                    labelStyle={{ color: "#cbd5e1" }}
-                    formatter={(value: number) => formatCurrency(value)}
-                  />
-                  <Bar dataKey="value" name="Chi tiêu" radius={[8, 8, 8, 8]}>
-                    {expenseByCategory.slice(0, 6).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                </PopoverContent>
+              </Popover>
+              <Button variant="outline" size="icon" className="rounded-2xl w-14 h-14 border-slate-800 bg-slate-900/50 transition-all active:scale-90" onClick={() => shiftAnchorDate(1)}><ChevronRight /></Button>
+           </div>
+        </div>
 
-              <p className="mt-2 text-sm text-slate-400">
-                Hiển thị {Math.min(expenseByCategory.length, 6)} danh mục chi tiêu cao nhất.
-              </p>
-            </>
-          )}
-        </Card>
-
-        <Card className="p-4 bg-slate-900 border-slate-800">
-          <h3 className="text-base mb-4 text-slate-100">Chi tiết danh mục</h3>
-
-          {isLoading && <p className="text-sm text-slate-400">Đang tải dữ liệu...</p>}
-
-          {!isLoading && expenseByCategory.length === 0 && (
-            <p className="text-sm text-slate-400">Không có dữ liệu chi tiết danh mục</p>
-          )}
-
-          {!isLoading && expenseByCategory.length > 0 && (
-            <div className="space-y-3">
-              {expenseByCategory.map((item, index) => (
-                <div key={`${item.name}-${index}`} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-sm text-slate-100">{item.name}</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-slate-100">{formatCurrency(item.value)}</p>
-                    <p className="text-sm text-slate-400">{toSafeNumber(item.percent).toFixed(1)}%</p>
-                  </div>
+        {/* Charts */}
+        <div className="space-y-8">
+           <Card className="p-8 bg-slate-900/40 border-slate-800 rounded-[3rem] shadow-2xl">
+              <div className="flex items-center justify-between mb-10">
+                 <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-500/10 rounded-xl"><Zap className="w-5 h-5 text-emerald-400" /></div>
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">{t("reports.trend")}</h3>
+                 </div>
+              </div>
+              
+              <div className="flex items-center justify-center gap-6 mb-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("common.income")}</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </Card>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{t("common.expense")}</span>
+                </div>
+              </div>
 
-        <Card className="p-4 bg-slate-900 border-slate-800">
-          <h3 className="text-base mb-4 text-slate-100">Thu chi theo kỳ</h3>
-
-          {isLoading && <p className="text-sm text-slate-400">Đang tải dữ liệu...</p>}
-
-          {!isLoading && incomeExpenseSeries.length === 0 && (
-            <p className="text-sm text-slate-400">Không có dữ liệu thu chi</p>
-          )}
-
-          {!isLoading && incomeExpenseSeries.length > 0 && (
-            <div className="space-y-4">
-              {incomeExpenseSeries.map((item) => (
-                <Card key={item.label} className="p-4 bg-slate-950 border-slate-800">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm text-slate-100">{item.label}</p>
-                    <div className="text-right">
-                      <p className="text-xs text-emerald-300">Thu: {formatCurrency(item.income)}</p>
-                      <p className="text-xs text-rose-300">Chi: {formatCurrency(item.expense)}</p>
-                    </div>
+              <div className="h-[400px] w-full">
+                {isLoading ? (
+                  <div className="h-full flex items-center justify-center animate-pulse text-slate-700 font-black uppercase tracking-[0.3em] text-[10px]">{t("common.loading")}</div>
+                ) : incomeExpenseSeries.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-800 gap-4 opacity-50">
+                     <Target className="w-12 h-12" />
+                     <p className="text-[10px] font-black uppercase tracking-widest">{t("common.noData")}</p>
                   </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={incomeExpenseSeries} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="8 8" stroke={chartTheme.grid} vertical={false} />
+                      <XAxis 
+                        dataKey="label" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: chartTheme.tick, fontSize: 9, fontFamily: chartTheme.font }} 
+                        interval={period === "month" ? 4 : period === "quarter" ? 1 : 0} 
+                        angle={period === "quarter" ? -45 : 0}
+                        textAnchor={period === "quarter" ? "end" : "middle"}
+                        height={period === "quarter" ? 50 : 30}
+                      />
+                      <YAxis hide />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 16, fontSize: 12 }} 
+                        cursor={{ fill: 'rgba(255,255,255,0.03)', radius: 8 }}
+                        formatter={(v: number) => formatCurrency(v)}
+                      />
+                      <Bar dataKey="income" fill="#10b981" radius={[8, 8, 0, 0]} name={t("common.income")} barSize={period === "week" ? 24 : 12} />
+                      <Bar dataKey="expense" fill="#ef4444" radius={[8, 8, 0, 0]} name={t("common.expense")} barSize={period === "week" ? 24 : 12} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+           </Card>
 
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">Thu nhập</p>
-                      <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500"
-                          style={{
-                            width: `${
-                              Math.max(...incomeExpenseSeries.map((x) => Math.max(x.income, x.expense)), 1) > 0
-                                ? (item.income /
-                                    Math.max(...incomeExpenseSeries.map((x) => Math.max(x.income, x.expense)), 1)) *
-                                  100
-                                : 0
-                            }%`,
-                          }}
-                        />
-                      </div>
-                    </div>
+           <Card className="p-8 bg-slate-900/40 border-slate-800 rounded-[3rem] shadow-2xl">
+              <div className="flex items-center gap-3 mb-10 text-left">
+                 <div className="p-2.5 bg-cyan-500/10 rounded-xl"><PieChart className="w-5 h-5 text-cyan-400" /></div>
+                 <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">{t("reports.allocation")}</h3>
+              </div>
+              <div className="space-y-10">
+                <div className="h-[300px]">
+                   <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={expenseByCategory.slice(0, 5)} layout="vertical" margin={{ left: -20, right: 30 }}>
+                         <XAxis type="number" hide />
+                         <YAxis 
+                            type="category" 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{ fill: chartTheme.tick, fontSize: 11, fontFamily: chartTheme.font }} 
+                            width={90} 
+                         />
+                         <Tooltip 
+                            contentStyle={{ backgroundColor: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 16 }} 
+                            cursor={{ fill: 'transparent' }} 
+                            formatter={(v: number) => formatCurrency(v)} 
+                         />
+                         <Bar dataKey="value" radius={[0, 15, 15, 0]} barSize={36}>
+                            {expenseByCategory.slice(0, 5).map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                         </Bar>
+                      </BarChart>
+                   </ResponsiveContainer>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                   {expenseByCategory.slice(0, 4).map((item, i) => (
+                     <div key={i} className="flex items-center justify-between p-5 bg-slate-950/40 rounded-[2rem] border border-white/5 shadow-inner">
+                        <div className="flex items-center gap-4">
+                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color, boxShadow: `0 0 10px ${item.color}40` }} />
+                           <span className="text-sm font-black text-slate-300">{item.name}</span>
+                        </div>
+                        <div className="text-right">
+                           <p className="text-sm font-black text-white">{formatCurrency(item.value)}</p>
+                           <p className="text-[10px] font-black text-slate-600 tracking-tighter">{item.percent.toFixed(1)}%</p>
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              </div>
+           </Card>
 
-                    <div>
-                      <p className="text-xs text-slate-400 mb-1">Chi tiêu</p>
-                      <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                        <div
-                          className="h-full bg-rose-500"
-                          style={{
-                            width: `${
-                              Math.max(...incomeExpenseSeries.map((x) => Math.max(x.income, x.expense)), 1) > 0
-                                ? (item.expense /
-                                    Math.max(...incomeExpenseSeries.map((x) => Math.max(x.income, x.expense)), 1)) *
-                                  100
-                                : 0
-                            }%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card className="p-4 bg-slate-900 border-slate-800">
-          <h3 className="text-base mb-4 text-slate-100">Dòng tiền ròng</h3>
-
-          {isLoading && <p className="text-sm text-slate-400">Đang tải dữ liệu...</p>}
-
-          {!isLoading && cashFlowData.length === 0 && (
-            <p className="text-sm text-slate-400">Không có dữ liệu dòng tiền</p>
-          )}
-
-          {!isLoading && cashFlowData.length > 0 && (
-            <div className="space-y-3">
-              {cashFlowData.map((item) => (
-                <div key={item.date}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-slate-100">{item.label}</p>
-                    <p className={`text-sm ${item.balance >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                      {formatCurrency(item.balance)}
-                    </p>
-                  </div>
-
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className={`h-full ${item.balance >= 0 ? "bg-emerald-500" : "bg-rose-500"}`}
-                      style={{
-                        width: `${
-                          Math.max(...cashFlowData.map((x) => Math.abs(x.balance)), 1) > 0
-                            ? (Math.abs(item.balance) / Math.max(...cashFlowData.map((x) => Math.abs(x.balance)), 1)) *
-                              100
-                            : 0
-                        }%`,
-                      }}
+           <Card className="p-8 bg-slate-900/40 border-slate-800 rounded-[3rem] shadow-2xl">
+              <div className="flex items-center gap-3 mb-10 text-left">
+                 <div className="p-2.5 bg-blue-500/10 rounded-xl"><DollarSign className="w-5 h-5 text-blue-400" /></div>
+                 <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">{t("reports.cashFlow")}</h3>
+              </div>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 4" stroke={chartTheme.grid} vertical={false} />
+                    <XAxis 
+                        dataKey="label" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fill: chartTheme.tick, fontSize: 10, fontFamily: chartTheme.font }} 
                     />
-                  </div>
+                    <YAxis hide />
+                    <Tooltip 
+                        contentStyle={{ backgroundColor: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 16 }} 
+                        formatter={(v: number) => formatCurrency(v)} 
+                    />
+                    <Area type="monotone" dataKey="balance" stroke="#3b82f6" strokeWidth={4} fillOpacity={1} fill="url(#colorBalance)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+           </Card>
+        </div>
+
+        {/* AI Insights */}
+        <div className="space-y-6 pb-12 text-left">
+           <div className="flex items-center gap-3 text-amber-500 ml-4">
+              <div className="p-2 bg-amber-500/10 rounded-xl"><Lightbulb className="w-5 h-5" /></div>
+              <h3 className="text-[11px] font-black uppercase tracking-[0.3em]">{t("reports.insights")}</h3>
+           </div>
+           <div className="space-y-4">
+              {insights.map((insight, i) => (
+                <div key={i} className="p-7 bg-slate-900 border border-slate-800 rounded-[2.5rem] flex gap-5 items-start shadow-2xl text-left">
+                   <div className="mt-2 w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.6)]" />
+                   <p className="text-[14px] font-medium text-slate-300 leading-relaxed italic text-left">"{insight}"</p>
                 </div>
               ))}
-            </div>
-          )}
-        </Card>
-
-        <div className="px-0 mt-6">
-          <h2 className="text-lg mb-3 text-slate-100 flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-yellow-300" />
-            Nhận xét
-          </h2>
-
-          <Card className="p-4 space-y-3 bg-slate-900 border-slate-800">
-            {isLoading && <p className="text-sm text-slate-400">Đang tải nhận định...</p>}
-
-            {!isLoading && insights.length === 0 && (
-              <p className="text-sm text-slate-400">Chưa có nhận định nào</p>
-            )}
-
-            {!isLoading &&
-              insights.map((insight, index) => (
-                <div
-                  key={`${index}-${insight}`}
-                  className="p-3 bg-cyan-900/20 border border-cyan-700/30 rounded-lg"
-                >
-                  <p className="text-sm text-slate-300">{insight}</p>
+              {insights.length === 0 && !isLoading && (
+                <div className="p-10 bg-slate-900/30 border border-dashed border-slate-800 rounded-[3rem] flex flex-col items-center gap-4 opacity-30">
+                   <Zap className="w-10 h-10 text-slate-800" />
+                   <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.4em]">{t("reports.waiting")}</p>
                 </div>
-              ))}
-
-            {!isLoading && insights.length === 0 && (
-              <>
-                <div className="p-3 bg-emerald-900/20 border border-emerald-700/30 rounded-lg">
-                  <p className="text-sm text-slate-300">
-                    Tỷ lệ tiết kiệm hiện tại là {savingsRateText}.
-                  </p>
-                </div>
-
-                <div className="p-3 bg-cyan-900/20 border border-cyan-700/30 rounded-lg">
-                  <p className="text-sm text-slate-300">
-                    Thu nhập bình quân mỗi kỳ: {formatCurrency(averageIncomePerPoint)}.
-                  </p>
-                </div>
-
-                <div className="p-3 bg-amber-900/20 border border-amber-700/30 rounded-lg">
-                  <p className="text-sm text-slate-300">
-                    Chi tiêu bình quân mỗi kỳ: {formatCurrency(averageExpensePerPoint)}.
-                  </p>
-                </div>
-              </>
-            )}
-          </Card>
+              )}
+           </div>
         </div>
       </div>
     </div>

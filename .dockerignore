@@ -1,10 +1,24 @@
+# Git & IDE
 .git
+.github
+**/.git
+
+# Python
 **/__pycache__
-**/*.pyc
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.egg-info
 **/.venv
-**/node_modules
+**/venv
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Node (only host copies — image builds deps inside Dockerfile)
 frontend/node_modules
-backend/.venv
-.env
-**/.env
-**/.env.*
+**/node_modules
+**/dist
+.vscode
+.idea

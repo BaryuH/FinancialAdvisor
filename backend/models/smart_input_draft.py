@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.enums import SmartInputMode, SmartInputStatus, TransactionType
 from db.base import Base
+from utils.dates import get_now
 
 
 def enum_values(enum_cls):
@@ -89,11 +90,12 @@ class SmartInputDraft(Base):
     expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default=text("now()"),
+        default=get_now,
+        onupdate=get_now,
         nullable=False,
     )
 

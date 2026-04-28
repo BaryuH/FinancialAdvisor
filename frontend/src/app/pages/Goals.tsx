@@ -29,6 +29,7 @@ import {
   topUpGoal,
   updateGoal,
 } from "../lib/api/goals";
+import { useLocale } from "../lib/locale";
 
 type UiGoal = {
   id: string;
@@ -48,18 +49,6 @@ type GoalIconOption = {
   label: string;
 };
 
-const GOAL_ICONS: GoalIconOption[] = [
-  { value: "piggy-bank", label: "Tiết kiệm" },
-  { value: "laptop", label: "Laptop" },
-  { value: "plane", label: "Du lịch" },
-  { value: "car", label: "Xe" },
-  { value: "home", label: "Nhà" },
-  { value: "graduation-cap", label: "Học tập" },
-  { value: "briefcase", label: "Công việc" },
-  { value: "gift", label: "Quà tặng" },
-  { value: "wallet", label: "Khác" },
-];
-
 function mapApiGoal(item: ApiGoal): UiGoal {
   return {
     id: item.id,
@@ -77,28 +66,20 @@ function mapApiGoal(item: ApiGoal): UiGoal {
 
 function getGoalIcon(iconKey: string) {
   switch (iconKey) {
-    case "piggy-bank":
-      return <PiggyBank className="w-5 h-5 text-cyan-300" />;
-    case "laptop":
-      return <Laptop className="w-5 h-5 text-violet-300" />;
-    case "plane":
-      return <Plane className="w-5 h-5 text-sky-300" />;
-    case "car":
-      return <Car className="w-5 h-5 text-emerald-300" />;
-    case "home":
-      return <Home className="w-5 h-5 text-amber-300" />;
-    case "graduation-cap":
-      return <GraduationCap className="w-5 h-5 text-indigo-300" />;
-    case "briefcase":
-      return <Briefcase className="w-5 h-5 text-rose-300" />;
-    case "gift":
-      return <Gift className="w-5 h-5 text-pink-300" />;
-    default:
-      return <Wallet className="w-5 h-5 text-slate-300" />;
+    case "piggy-bank": return <PiggyBank className="w-5 h-5 text-cyan-300" />;
+    case "laptop": return <Laptop className="w-5 h-5 text-violet-300" />;
+    case "plane": return <Plane className="w-5 h-5 text-sky-300" />;
+    case "car": return <Car className="w-5 h-5 text-emerald-300" />;
+    case "home": return <Home className="w-5 h-5 text-amber-300" />;
+    case "graduation-cap": return <GraduationCap className="w-5 h-5 text-indigo-300" />;
+    case "briefcase": return <Briefcase className="w-5 h-5 text-rose-300" />;
+    case "gift": return <Gift className="w-5 h-5 text-pink-300" />;
+    default: return <Wallet className="w-5 h-5 text-slate-300" />;
   }
 }
 
 export function Goals() {
+  const { t, locale } = useLocale();
   const [goals, setGoals] = useState<UiGoal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,6 +89,18 @@ export function Goals() {
 
   const [editingGoal, setEditingGoal] = useState<UiGoal | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<UiGoal | null>(null);
+
+  const GOAL_ICONS: GoalIconOption[] = [
+    { value: "piggy-bank", label: t("common.savings") || "Tiết kiệm" },
+    { value: "laptop", label: "Laptop" },
+    { value: "plane", label: "Du lịch" },
+    { value: "car", label: "Xe" },
+    { value: "home", label: "Nhà" },
+    { value: "graduation-cap", label: "Học tập" },
+    { value: "briefcase", label: "Công việc" },
+    { value: "gift", label: "Quà tặng" },
+    { value: "wallet", label: "Khác" },
+  ];
 
   const [goalForm, setGoalForm] = useState({
     name: "",
@@ -119,10 +112,7 @@ export function Goals() {
   const [topUpAmount, setTopUpAmount] = useState("");
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(amount);
+    return new Intl.NumberFormat("vi-VN").format(amount) + " đ";
   };
 
   const loadGoals = async () => {
@@ -131,7 +121,7 @@ export function Goals() {
       const response = await getGoals();
       setGoals(response.items.map(mapApiGoal));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không tải được danh sách mục tiêu");
+      toast.error(t("common.noData"));
     } finally {
       setIsLoading(false);
     }
@@ -142,12 +132,7 @@ export function Goals() {
   }, []);
 
   const resetGoalForm = () => {
-    setGoalForm({
-      name: "",
-      targetAmount: "",
-      deadline: "",
-      icon: "piggy-bank",
-    });
+    setGoalForm({ name: "", targetAmount: "", deadline: "", icon: "piggy-bank" });
     setEditingGoal(null);
   };
 
@@ -158,35 +143,30 @@ export function Goals() {
 
   const handleSubmitGoal = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!goalForm.name || !goalForm.targetAmount || !goalForm.deadline || !goalForm.icon) {
-      toast.error("Vui lòng điền đầy đủ thông tin");
+    if (!goalForm.name || !goalForm.targetAmount || !goalForm.deadline) {
+      toast.error("Vui lòng điền đủ thông tin");
       return;
     }
-
     try {
       setIsSubmitting(true);
-
       const payload = {
         name: goalForm.name.trim(),
         target_minor: Number(goalForm.targetAmount),
         deadline: goalForm.deadline,
         icon_key: goalForm.icon,
       };
-
       if (editingGoal) {
         await updateGoal(editingGoal.id, payload);
-        toast.success("Cập nhật mục tiêu thành công");
+        toast.success(t("common.done"));
       } else {
         await createGoal(payload);
-        toast.success("Tạo mục tiêu thành công");
+        toast.success(t("common.done"));
       }
-
       setIsGoalDialogOpen(false);
       resetGoalForm();
       await loadGoals();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Lưu mục tiêu thất bại");
+      toast.error("Thất bại");
     } finally {
       setIsSubmitting(false);
     }
@@ -194,24 +174,19 @@ export function Goals() {
 
   const handleSubmitTopUp = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!selectedGoal || !topUpAmount) {
       toast.error("Vui lòng nhập số tiền");
       return;
     }
-
     try {
       setIsSubmitting(true);
-      await topUpGoal(selectedGoal.id, {
-        amount_minor: Number(topUpAmount),
-      });
-
-      toast.success("Nạp thêm tiền thành công");
+      await topUpGoal(selectedGoal.id, { amount_minor: Number(topUpAmount) });
+      toast.success(t("common.done"));
       setIsTopUpDialogOpen(false);
       resetTopUpForm();
       await loadGoals();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Nạp tiền thất bại");
+      toast.error("Thất bại");
     } finally {
       setIsSubmitting(false);
     }
@@ -231,70 +206,42 @@ export function Goals() {
   const handleDelete = async (goalId: string) => {
     try {
       await deleteGoal(goalId);
-      toast.success("Xóa mục tiêu thành công");
+      toast.success(t("common.done"));
       await loadGoals();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Xóa mục tiêu thất bại");
+      toast.error("Thất bại");
     }
   };
 
-  const handleOpenTopUp = (goal: UiGoal) => {
-    setSelectedGoal(goal);
-    setTopUpAmount("");
-    setIsTopUpDialogOpen(true);
-  };
-
-  const totalTarget = useMemo(
-    () => goals.reduce((sum, goal) => sum + goal.targetAmount, 0),
-    [goals],
-  );
-
-  const totalSaved = useMemo(
-    () => goals.reduce((sum, goal) => sum + goal.currentAmount, 0),
-    [goals],
-  );
-
+  const totalTarget = useMemo(() => goals.reduce((sum, goal) => sum + goal.targetAmount, 0), [goals]);
+  const totalSaved = useMemo(() => goals.reduce((sum, goal) => sum + goal.currentAmount, 0), [goals]);
   const overallProgress = totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0;
 
   return (
-    <div className="max-w-md mx-auto min-h-screen pb-6">
-      <div className="px-4 pt-3 pb-4 text-foreground border-b border-border">
-        <Card className="p-5 bg-card border border-border text-card-foreground">
-          <p className="text-base text-muted-foreground mb-1">Tổng tiến độ tiết kiệm</p>
+    <div className="max-w-md mx-auto min-h-screen pb-24 text-slate-100 font-sans">
+      <div className="px-4 pt-6 pb-4 border-b border-white/5">
+        <Card className="p-5 bg-slate-900 border-slate-800 text-left">
+          <p className="text-base font-semibold text-slate-400 mb-1">{t("goals.totalProgress")}</p>
           <div className="flex items-baseline gap-2 mb-4">
-            <p className="text-2xl text-primary">{formatCurrency(totalSaved)}</p>
-            <p className="text-base text-muted-foreground">/ {formatCurrency(totalTarget)}</p>
+            <p className="text-3xl font-black text-white tracking-tighter">{formatCurrency(totalSaved)}</p>
+            <p className="text-sm font-bold text-slate-500">/ {formatCurrency(totalTarget)}</p>
           </div>
-          <Progress value={Math.min(overallProgress, 100)} className="h-3 bg-muted [&>div]:bg-primary" />
-          <p className="text-sm text-muted-foreground mt-3">
-            Hoàn thành: {overallProgress.toFixed(0)}%
+          <Progress value={Math.min(overallProgress, 100)} className="h-2.5 bg-slate-800 [&>div]:bg-cyan-500" />
+          <p className="text-xs font-bold text-slate-400 mt-3 uppercase tracking-widest">
+            {t("common.done")}: {overallProgress.toFixed(0)}%
           </p>
         </Card>
       </div>
 
-      <div className="px-4 mt-6 space-y-4">
-        <div className="sticky top-0 z-20 -mx-4 px-4 py-3 bg-background/90 backdrop-blur-md border-b border-border">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-foreground">Danh sách mục tiêu</h2>
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetGoalForm();
-                setIsGoalDialogOpen(true);
-              }}
-              className="h-11 px-4 text-sm border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Thêm
-            </Button>
-          </div>
+      <div className="px-4 mt-6 space-y-4 text-left">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">{t("goals.list")}</h2>
+          <Button onClick={() => { resetGoalForm(); setIsGoalDialogOpen(true); }} size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-full h-8 px-4">
+            <Plus className="w-4 h-4 mr-1" /> {t("common.add")}
+          </Button>
         </div>
 
-        {isLoading && (
-          <div className="text-center py-12 text-slate-400">
-            <p>Đang tải mục tiêu...</p>
-          </div>
-        )}
+        {isLoading && <p className="text-center py-20 text-slate-500 text-sm animate-pulse">{t("common.loading")}</p>}
 
         {!isLoading &&
           goals.map((goal) => (
@@ -305,215 +252,97 @@ export function Goals() {
                     {getGoalIcon(goal.icon)}
                   </div>
                   <div>
-                    <p className="text-base font-semibold text-slate-100">{goal.name}</p>
-                    <p className="text-sm text-slate-300 mt-0.5">
+                    <p className="text-base font-black text-slate-100">{goal.name}</p>
+                    <p className="text-xs font-bold text-slate-500 mt-0.5">
                       {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10 text-slate-300 hover:text-slate-100"
-                    onClick={() => handleEdit(goal)}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-10 w-10 text-red-400 hover:text-red-300"
-                    onClick={() => handleDelete(goal.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-500" onClick={() => handleEdit(goal)}><Edit className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-500/60" onClick={() => handleDelete(goal.id)}><Trash2 className="w-4 h-4" /></Button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Progress
-                  value={Math.min(goal.progressPercent, 100)}
-                  className={`h-2 ${goal.isCompleted ? "[&>div]:bg-emerald-500" : "[&>div]:bg-cyan-500"}`}
-                />
-                <div className="flex items-center justify-between text-sm">
-                  <span className={goal.isCompleted ? "text-emerald-400" : "text-slate-300"}>
-                    {goal.progressPercent.toFixed(0)}% hoàn thành
-                  </span>
-                  <span className="text-slate-300">
-                    Hạn: {new Date(goal.deadline).toLocaleDateString("vi-VN")}
-                  </span>
+                <Progress value={Math.min(goal.progressPercent, 100)} className={`h-1.5 ${goal.isCompleted ? "[&>div]:bg-emerald-500" : "[&>div]:bg-cyan-500"}`} />
+                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                  <span className={goal.isCompleted ? "text-emerald-400" : "text-slate-500"}>{goal.progressPercent.toFixed(0)}% {t("common.done")}</span>
+                  <span className="text-slate-500">{t("common.date")}: {new Date(goal.deadline).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US")}</span>
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                  <p className="text-xs text-slate-400 mb-1">Còn thiếu</p>
-                  <p className="text-sm text-slate-100">
-                    {formatCurrency(Math.max(goal.targetAmount - goal.currentAmount, 0))}
-                  </p>
+                <div className="p-3 bg-slate-950/40 rounded-xl border border-white/5">
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">{t("goals.missing")}</p>
+                  <p className="text-sm font-black text-slate-200">{formatCurrency(Math.max(goal.targetAmount - goal.currentAmount, 0))}</p>
                 </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                  <p className="text-xs text-slate-400 mb-1">Cần tiết kiệm/tháng</p>
-                  <p className="text-sm text-slate-100">
-                    {formatCurrency(goal.requiredMonthlySaving ?? 0)}
-                  </p>
+                <div className="p-3 bg-slate-950/40 rounded-xl border border-white/5">
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">{t("goals.monthlyNeeded")}</p>
+                  <p className="text-sm font-black text-slate-200">{formatCurrency(goal.requiredMonthlySaving ?? 0)}</p>
                 </div>
               </div>
 
               <div className="mt-4 flex items-center justify-between">
-                <p className="text-sm text-slate-300">
-                  {goal.isCompleted
-                    ? "Đã hoàn thành mục tiêu"
-                    : goal.daysRemaining !== null
-                    ? `Còn ${goal.daysRemaining} ngày`
-                    : "Không có hạn cụ thể"}
+                <p className="text-xs font-bold text-slate-500 italic">
+                  {goal.isCompleted ? t("goals.completed") : goal.daysRemaining !== null ? `${goal.daysRemaining} ${t("goals.daysLeft")}` : t("goals.noLimit")}
                 </p>
-                {!goal.isCompleted && (
-                  <Button size="sm" onClick={() => handleOpenTopUp(goal)}>
-                    Nạp thêm
-                  </Button>
-                )}
+                {!goal.isCompleted && <Button size="sm" onClick={() => handleOpenTopUp(goal)} className="bg-slate-800 hover:bg-slate-700 text-cyan-400 font-black text-[10px] uppercase tracking-widest h-8 px-4 rounded-lg">{t("goals.topUp")}</Button>}
               </div>
             </Card>
           ))}
 
         {!isLoading && goals.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
-            <p>Chưa có mục tiêu nào</p>
-            <p className="text-sm mt-2">Nhấn "Thêm" để tạo mục tiêu mới</p>
+          <div className="py-20 flex flex-col items-center gap-4 opacity-30">
+             <PiggyBank className="w-12 h-12" />
+             <p className="text-[10px] font-black uppercase tracking-widest">{t("common.noData")}</p>
           </div>
         )}
       </div>
 
-      <Dialog
-        open={isGoalDialogOpen}
-        onOpenChange={(open) => {
-          setIsGoalDialogOpen(open);
-          if (!open) resetGoalForm();
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingGoal ? "Sửa mục tiêu" : "Thêm mục tiêu mới"}</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmitGoal} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Tên mục tiêu</Label>
-              <Input
-                id="name"
-                placeholder="Ví dụ: Mua laptop mới"
-                value={goalForm.name}
-                onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })}
-              />
+      {/* Goal Dialog */}
+      <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
+        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100">
+          <DialogHeader><DialogTitle className="text-slate-100 text-left">{editingGoal ? t("goals.editTitle") : t("goals.createTitle")}</DialogTitle></DialogHeader>
+          <form onSubmit={handleSubmitGoal} className="space-y-4 pt-4 text-left">
+            <div className="space-y-2">
+              <Label className="text-slate-400">{t("goals.nameLabel")}</Label>
+              <Input placeholder="Ví dụ: Mua laptop mới" value={goalForm.name} onChange={(e) => setGoalForm({ ...goalForm, name: e.target.value })} className="bg-slate-800 border-slate-700" />
             </div>
-
-            <div>
-              <Label htmlFor="targetAmount">Số tiền mục tiêu (VNĐ)</Label>
-              <Input
-                id="targetAmount"
-                type="number"
-                placeholder="0"
-                value={goalForm.targetAmount}
-                onChange={(e) => setGoalForm({ ...goalForm, targetAmount: e.target.value })}
-              />
+            <div className="space-y-2">
+              <Label className="text-slate-400">{t("common.amount")} (VNĐ)</Label>
+              <Input type="number" value={goalForm.targetAmount} onChange={(e) => setGoalForm({ ...goalForm, targetAmount: e.target.value })} className="bg-slate-800 border-slate-700 font-bold" />
             </div>
-
-            <div>
-              <Label htmlFor="deadline">Hạn hoàn thành</Label>
-              <Input
-                id="deadline"
-                type="date"
-                value={goalForm.deadline}
-                onChange={(e) => setGoalForm({ ...goalForm, deadline: e.target.value })}
-              />
+            <div className="space-y-2">
+              <Label className="text-slate-400">{t("goals.deadlineLabel")}</Label>
+              <Input type="date" value={goalForm.deadline} onChange={(e) => setGoalForm({ ...goalForm, deadline: e.target.value })} className="bg-slate-800 border-slate-700 [color-scheme:dark]" />
             </div>
-
-            <div>
-              <Label htmlFor="icon">Biểu tượng</Label>
-              <Select
-                value={goalForm.icon}
-                onValueChange={(value) => setGoalForm({ ...goalForm, icon: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn biểu tượng" />
-                </SelectTrigger>
-                <SelectContent>
-                  {GOAL_ICONS.map((icon) => (
-                    <SelectItem key={icon.value} value={icon.value}>
-                      {icon.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+            <div className="space-y-2">
+              <Label className="text-slate-400">{t("goals.iconLabel")}</Label>
+              <Select value={goalForm.icon} onValueChange={(v) => setGoalForm({ ...goalForm, icon: v })}>
+                <SelectTrigger className="bg-slate-800 border-slate-700"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700 text-slate-100">{GOAL_ICONS.map((i) => (<SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>))}</SelectContent>
               </Select>
             </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  setIsGoalDialogOpen(false);
-                  resetGoalForm();
-                }}
-              >
-                Hủy
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                {isSubmitting ? "Đang lưu..." : editingGoal ? "Cập nhật" : "Thêm"}
-              </Button>
+            <div className="flex gap-3 pt-2">
+              <Button type="button" variant="ghost" className="flex-1" onClick={() => setIsGoalDialogOpen(false)}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={isSubmitting} className="flex-1 bg-emerald-600 hover:bg-emerald-500">{isSubmitting ? t("common.loading") : t("common.done")}</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={isTopUpDialogOpen}
-        onOpenChange={(open) => {
-          setIsTopUpDialogOpen(open);
-          if (!open) resetTopUpForm();
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nạp thêm tiền</DialogTitle>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmitTopUp} className="space-y-4">
-            <div>
-              <Label>Mục tiêu</Label>
-              <Input value={selectedGoal?.name ?? ""} disabled />
-            </div>
-
-            <div>
-              <Label htmlFor="topUpAmount">Số tiền (VNĐ)</Label>
-              <Input
-                id="topUpAmount"
-                type="number"
-                placeholder="0"
-                value={topUpAmount}
-                onChange={(e) => setTopUpAmount(e.target.value)}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  setIsTopUpDialogOpen(false);
-                  resetTopUpForm();
-                }}
-              >
-                Hủy
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                {isSubmitting ? "Đang xử lý..." : "Nạp thêm"}
-              </Button>
+      {/* TopUp Dialog */}
+      <Dialog open={isTopUpDialogOpen} onOpenChange={setIsTopUpDialogOpen}>
+        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100">
+          <DialogHeader><DialogTitle className="text-slate-100 text-left">{t("goals.topUp")}</DialogTitle></DialogHeader>
+          <form onSubmit={handleSubmitTopUp} className="space-y-4 pt-4 text-left">
+            <div className="space-y-2"><Label className="text-slate-400">{t("goals.nameLabel")}</Label><Input value={selectedGoal?.name ?? ""} disabled className="bg-slate-800/50 border-slate-800" /></div>
+            <div className="space-y-2"><Label className="text-slate-400">{t("common.amount")} (VNĐ)</Label><Input type="number" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} className="bg-slate-800 border-slate-700 font-bold" /></div>
+            <div className="flex gap-3 pt-2">
+              <Button type="button" variant="ghost" className="flex-1" onClick={() => setIsTopUpDialogOpen(false)}>{t("common.cancel")}</Button>
+              <Button type="submit" disabled={isSubmitting} className="flex-1 bg-emerald-600 hover:bg-emerald-500">{isSubmitting ? t("common.loading") : t("common.done")}</Button>
             </div>
           </form>
         </DialogContent>

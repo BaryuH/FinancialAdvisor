@@ -1,4 +1,5 @@
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,55 @@ from core.config import settings
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Seed admin user
+    try:
+        from sqlalchemy.orm import Session
+        from db.session import SessionLocal
+        from core.security import hash_password
+        
+        # Import all models to ensure SQLAlchemy mapper knows them
+        import models.category
+        import models.budget
+        import models.goal
+        import models.smart_input_draft
+        import models.transaction
+        from models.user import User
+        from repositories.user_repository import UserRepository
+
+        db: Session = SessionLocal()
+        try:
+            email = "admin1234@gmail.com"
+            password = "admin"
+            
+            # Use UserRepository for consistent email lookup
+            user = UserRepository.get_by_email(db, email)
+            
+            if not user:
+                # Create if not exists
+                UserRepository.create(
+                    db,
+                    email=email,
+                    password_hash=hash_password(password),
+                    display_name="Administrator"
+                )
+                print(f"Auto-seeded admin user: {email}")
+            else:
+                # Always ensure the password is 'admin' for test convenience
+                user.password_hash = hash_password(password)
+                user.is_active = True
+                db.add(user)
+                db.commit()
+                print(f"Admin password synchronized for: {email}")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"Error auto-seeding admin: {e}")
+    
+    yield
+    # Shutdown: Clean up if needed
+
 app = FastAPI(
     title=settings.app_name,
     debug=settings.debug,
@@ -17,6 +67,7 @@ app = FastAPI(
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
     openapi_url="/openapi.json" if settings.debug else None,
+    lifespan=lifespan,
 )
 
 app.add_middleware(

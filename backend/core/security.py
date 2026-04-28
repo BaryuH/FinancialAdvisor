@@ -39,6 +39,9 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
         return False
 
 
+from utils.dates import get_now
+
+
 def _create_token(
     *,
     subject: str,
@@ -46,7 +49,7 @@ def _create_token(
     token_version: int,
     expires_delta: timedelta,
 ) -> str:
-    now = datetime.now(timezone.utc)
+    now = get_now()
     payload = {
         "sub": subject,
         "type": token_type,

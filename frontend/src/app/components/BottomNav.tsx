@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router";
+import { motion } from "motion/react";
 import {
   Home,
   PieChart,
@@ -60,12 +61,19 @@ export function BottomNav({ currentPath }: BottomNavProps) {
             <Link
               key={item.path}
               to={item.path}
-              className={`relative z-10 flex flex-col items-center justify-center flex-1 h-[54px] mx-1 my-1 rounded-[1.35rem] border touch-manipulation transition-all duration-200 ease-out active:scale-[0.96] motion-reduce:active:scale-100 ${
+              className={`relative z-10 flex flex-col items-center justify-center flex-1 h-[54px] mx-1 my-1 rounded-[1.35rem] touch-manipulation transition-colors duration-200 ease-out active:scale-[0.96] motion-reduce:active:scale-100 ${
                 isActive
-                  ? "text-foreground bg-foreground/10 border-foreground/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-                  : "text-foreground/80 border-transparent hover:text-foreground hover:bg-foreground/5"
+                  ? "text-foreground"
+                  : "text-foreground/80 hover:text-foreground"
               }`}
             >
+              {isActive && (
+                <motion.div
+                  layoutId="bottom-nav-active"
+                  className="absolute inset-0 bg-foreground/10 border border-foreground/20 rounded-[1.35rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] -z-10"
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                />
+              )}
               <Icon className="w-[18px] h-[18px] mb-1" strokeWidth={2} />
               <span className="text-[11px] font-medium">{item.label}</span>
             </Link>
@@ -76,22 +84,27 @@ export function BottomNav({ currentPath }: BottomNavProps) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className={`relative z-10 flex flex-col items-center justify-center flex-1 h-[54px] mx-1 my-1 rounded-[1.35rem] border group touch-manipulation transition-all duration-200 ease-out active:scale-[0.96] motion-reduce:active:scale-100 ${
-                isQuickMenuOpen
-                  ? "bg-foreground/10 border-foreground/20"
-                  : "border-transparent hover:bg-foreground/5"
+              className={`relative z-10 flex flex-col items-center justify-center flex-1 h-[54px] mx-1 my-1 rounded-[1.35rem] group touch-manipulation transition-all duration-200 ease-out active:scale-[0.96] motion-reduce:active:scale-100 ${
+                isQuickMenuOpen ? "" : "hover:bg-foreground/5"
               }`}
               aria-label="Thêm nhanh"
             >
+              {isQuickMenuOpen && (
+                <motion.div
+                  layoutId="bottom-nav-active"
+                  className="absolute inset-0 bg-foreground/10 border border-foreground/20 rounded-[1.35rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] -z-10"
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                />
+              )}
               <div
                 className={`-mt-6 h-14 w-14 rounded-[1rem] border-2 flex items-center justify-center text-white transition-all duration-200 ${
                   isQuickMenuOpen
-                    ? "border-emerald-200 bg-emerald-400 shadow-[0_0_24px_rgba(34,197,94,0.52)] ring-2 ring-emerald-200/45"
-                    : "border-emerald-300/95 bg-emerald-500 shadow-[0_0_18px_rgba(34,197,94,0.42)] hover:bg-emerald-400"
+                    ? "border-emerald-200 bg-emerald-400 shadow-[0_0_24px_rgba(34,197,94,0.52)] ring-2 ring-emerald-200/45 scale-95"
+                    : "border-emerald-300/95 bg-emerald-500 shadow-[0_0_18px_rgba(34,197,94,0.42)] hover:bg-emerald-400 hover:scale-105"
                 }`}
               >
                 <Plus
-                  className={`w-5 h-5 transition-transform duration-200 ${isQuickMenuOpen ? "rotate-45" : "rotate-0"}`}
+                  className={`w-5 h-5 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${isQuickMenuOpen ? "rotate-45" : "rotate-0"}`}
                   strokeWidth={2.2}
                 />
               </div>
@@ -101,24 +114,24 @@ export function BottomNav({ currentPath }: BottomNavProps) {
             side="top"
             align="center"
             sideOffset={10}
-            className="w-60 border border-border bg-popover/95 text-popover-foreground backdrop-blur-md backdrop-saturate-120 p-2 rounded-2xl shadow-[0_6px_16px_rgba(2,6,23,0.12)]"
+            className="w-60 border border-border bg-popover/95 text-popover-foreground backdrop-blur-md backdrop-saturate-120 p-2 rounded-2xl shadow-[0_6px_16px_rgba(2,6,23,0.12)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-100 data-[state=closed]:slide-out-to-bottom-2 data-[state=open]:slide-in-from-bottom-4 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
           >
-            <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 mb-2">
+            <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 mb-2 transition-transform active:scale-95">
               <Link to="/smart-input?mode=voice" className="flex items-center gap-3">
                 <Mic className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm">Giọng nói</span>
+                <span className="text-sm font-medium">{t("smartInput.voice")}</span>
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 mb-2">
-              <Link to="/transactions?add=1" className="flex items-center gap-3">
+            <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 mb-2 transition-transform active:scale-95">
+              <Link to="/smart-input?mode=manual" className="flex items-center gap-3">
                 <Keyboard className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm">Nhập thủ công</span>
+                <span className="text-sm font-medium">{t("smartInput.manual")}</span>
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5">
+            <DropdownMenuItem asChild className="cursor-pointer rounded-lg border border-emerald-500/25 bg-foreground/[0.03] px-3 py-2.5 transition-transform active:scale-95">
               <Link to="/smart-input?mode=scan" className="flex items-center gap-3">
                 <ScanLine className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm">OCR / Quét hóa đơn</span>
+                <span className="text-sm font-medium">{t("smartInput.scan")}</span>
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -131,12 +144,19 @@ export function BottomNav({ currentPath }: BottomNavProps) {
             <Link
               key={item.path}
               to={item.path}
-              className={`relative z-10 flex flex-col items-center justify-center flex-1 h-[54px] mx-1 my-1 rounded-[1.35rem] border touch-manipulation transition-all duration-200 ease-out active:scale-[0.96] motion-reduce:active:scale-100 ${
+              className={`relative z-10 flex flex-col items-center justify-center flex-1 h-[54px] mx-1 my-1 rounded-[1.35rem] touch-manipulation transition-colors duration-200 ease-out active:scale-[0.96] motion-reduce:active:scale-100 ${
                 isActive
-                  ? "text-foreground bg-foreground/10 border-foreground/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-                  : "text-foreground/80 border-transparent hover:text-foreground hover:bg-foreground/5"
+                  ? "text-foreground"
+                  : "text-foreground/80 hover:text-foreground"
               }`}
             >
+              {isActive && (
+                <motion.div
+                  layoutId="bottom-nav-active"
+                  className="absolute inset-0 bg-foreground/10 border border-foreground/20 rounded-[1.35rem] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] -z-10"
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                />
+              )}
               <Icon className="w-[18px] h-[18px] mb-1" strokeWidth={2} />
               <span className="text-[11px] font-medium">{item.label}</span>
             </Link>

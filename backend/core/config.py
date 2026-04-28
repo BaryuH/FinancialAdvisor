@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=15, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_minutes: int = Field(default=10080, alias="REFRESH_TOKEN_EXPIRE_MINUTES")
 
+    ocr_api_url: str = Field(default="http://n3.ckey.vn:1707/api/process/image", alias="OCR_API_URL")
+    asr_api_url: str = Field(default="http://n3.ckey.vn:1707/api/process/audio", alias="ASR_API_URL")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

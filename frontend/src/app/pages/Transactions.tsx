@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router";
+import { motion } from "motion/react";
 import {
   ApiCategory,
   ApiTransaction,
@@ -31,6 +32,8 @@ import {
   getTransactions,
   updateTransaction,
 } from "../lib/api/transactions";
+import { useLocale } from "../lib/locale";
+import { vi } from "date-fns/locale";
 
 type UiTransaction = {
   id: string;
@@ -57,6 +60,7 @@ function mapApiTransaction(item: ApiTransaction): UiTransaction {
 export function Transactions() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t, locale } = useLocale();
 
   const [transactions, setTransactions] = useState<UiTransaction[]>([]);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
@@ -76,10 +80,7 @@ export function Transactions() {
   });
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(amount);
+    return new Intl.NumberFormat("vi-VN").format(amount) + " đ";
   };
 
   const loadTransactions = async () => {
@@ -93,7 +94,7 @@ export function Transactions() {
       });
       setTransactions(response.items.map(mapApiTransaction));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không tải được danh sách giao dịch");
+      toast.error(t("common.noData"));
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +105,7 @@ export function Transactions() {
       const response = await getCategories(type);
       setCategories(response.items);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không tải được danh mục");
+      toast.error(t("common.noData"));
     }
   };
 
@@ -119,8 +120,7 @@ export function Transactions() {
   useEffect(() => {
     if (searchParams.get("add") !== "1") return;
     const typeParam = searchParams.get("type");
-    const initialType: "income" | "expense" =
-      typeParam === "income" ? "income" : "expense";
+    const initialType: "income" | "expense" = typeParam === "income" ? "income" : "expense";
     setEditingTransaction(null);
     setFormData({
       type: initialType,
@@ -129,8 +129,11 @@ export function Transactions() {
       description: "",
       date: new Date().toISOString().split("T")[0],
     });
-    setIsDialogOpen(true);
-    navigate("/transactions", { replace: true });
+    const timer = setTimeout(() => {
+      setIsDialogOpen(true);
+      navigate("/transactions", { replace: true });
+    }, 150);
+    return () => clearTimeout(timer);
   }, [searchParams, navigate]);
 
   const resetForm = () => {
@@ -146,15 +149,12 @@ export function Transactions() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!formData.amount || !formData.categoryId || !formData.description) {
-      toast.error("Vui lòng điền đầy đủ thông tin");
+      toast.error("Vui lòng điền đủ thông tin");
       return;
     }
-
     try {
       setIsSubmitting(true);
-
       const payload = {
         type: formData.type,
         category_id: formData.categoryId,
@@ -163,70 +163,44 @@ export function Transactions() {
         transaction_date: formData.date,
         source: "manual" as const,
       };
-
       if (editingTransaction) {
         await updateTransaction(editingTransaction.id, payload);
-        toast.success("Cập nhật giao dịch thành công");
+        toast.success(t("common.done"));
       } else {
         await createTransaction(payload);
-        toast.success("Thêm giao dịch thành công");
+        toast.success(t("common.done"));
       }
-
       setIsDialogOpen(false);
       resetForm();
       await loadTransactions();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Lưu giao dịch thất bại");
+      toast.error("Lỗi");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleEdit = async (transaction: UiTransaction) => {
-    setEditingTransaction(transaction);
-    setFormData({
-      type: transaction.type,
-      amount: transaction.amount.toString(),
-      categoryId: transaction.categoryId,
-      description: transaction.description,
-      date: transaction.date,
-    });
-    setIsDialogOpen(true);
-  };
-
   const handleDelete = async (id: string) => {
     try {
       await deleteTransaction(id);
-      toast.success("Xóa giao dịch thành công");
+      toast.success(t("common.done"));
       await loadTransactions();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Xóa giao dịch thất bại");
+      toast.error("Lỗi");
     }
   };
 
   const getCategoryIcon = (categoryName: string) => {
     const iconName = categories.find((c) => c.name === categoryName)?.icon_key;
     switch (iconName) {
-      case "utensils":
-        return <UtensilsCrossed className="w-4 h-4 text-amber-300" />;
-      case "shopping-bag":
-        return <ShoppingBag className="w-4 h-4 text-violet-300" />;
-      case "car":
-        return <Car className="w-4 h-4 text-cyan-300" />;
-      case "film":
-        return <Film className="w-4 h-4 text-pink-300" />;
-      case "home":
-        return <House className="w-4 h-4 text-emerald-300" />;
-      case "heart":
-        return <HeartPulse className="w-4 h-4 text-rose-300" />;
-      case "book":
-        return <BookOpen className="w-4 h-4 text-indigo-300" />;
-      case "wallet":
-        return <Wallet className="w-4 h-4 text-emerald-300" />;
-      case "trending-up":
-        return <TrendingUp className="w-4 h-4 text-sky-300" />;
-      default:
-        return <Wallet className="w-4 h-4 text-slate-300" />;
+      case "utensils": return <UtensilsCrossed className="w-4 h-4 text-amber-300" />;
+      case "shopping-bag": return <ShoppingBag className="w-4 h-4 text-violet-300" />;
+      case "car": return <Car className="w-4 h-4 text-cyan-300" />;
+      case "film": return <Film className="w-4 h-4 text-pink-300" />;
+      case "home": return <House className="w-4 h-4 text-emerald-300" />;
+      case "heart": return <HeartPulse className="w-4 h-4 text-rose-300" />;
+      case "book": return <BookOpen className="w-4 h-4 text-indigo-300" />;
+      default: return <Wallet className="w-4 h-4 text-slate-300" />;
     }
   };
 
@@ -240,15 +214,15 @@ export function Transactions() {
   }, [transactions]);
 
   return (
-    <div className="max-w-md mx-auto min-h-screen pb-6">
-      <div className="px-4 pt-3 pb-4 text-foreground border-b border-border">
+    <div className="max-w-md mx-auto min-h-screen pb-24 text-slate-100 font-sans">
+      <div className="px-4 pt-6 pb-4 text-foreground border-b border-white/5">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
           <Input
-            placeholder="Tìm kiếm giao dịch..."
+            placeholder={t("transactions.search") || "Tìm kiếm giao dịch..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-muted border-border text-foreground placeholder:text-muted-foreground"
+            className="pl-10 bg-slate-900/50 border-slate-800 text-white placeholder:text-slate-500"
           />
         </div>
 
@@ -257,93 +231,63 @@ export function Transactions() {
             variant={filterType === "all" ? "secondary" : "outline"}
             size="sm"
             onClick={() => setFilterType("all")}
-            className={filterType === "all" ? "" : "border-border bg-card text-foreground hover:bg-muted"}
+            className={filterType === "all" ? "bg-slate-800 text-white" : "border-slate-800 text-slate-400"}
           >
-            Tất cả
+            {t("common.total") || "Tất cả"}
           </Button>
           <Button
             variant={filterType === "income" ? "secondary" : "outline"}
             size="sm"
             onClick={() => setFilterType("income")}
-            className={filterType === "income" ? "" : "border-border bg-card text-foreground hover:bg-muted"}
+            className={filterType === "income" ? "bg-emerald-600/20 text-emerald-400 border-emerald-600/30" : "border-slate-800 text-slate-400"}
           >
-            Thu nhập
+            {t("common.income")}
           </Button>
           <Button
             variant={filterType === "expense" ? "secondary" : "outline"}
             size="sm"
             onClick={() => setFilterType("expense")}
-            className={filterType === "expense" ? "" : "border-border bg-card text-foreground hover:bg-muted"}
+            className={filterType === "expense" ? "bg-rose-600/20 text-rose-400 border-rose-600/30" : "border-slate-800 text-slate-400"}
           >
-            Chi tiêu
+            {t("common.expense")}
           </Button>
         </div>
       </div>
 
-      <div className="px-4 mt-6 space-y-6">
-        {isLoading && (
-          <div className="text-center py-12 text-slate-400">
-            <p>Đang tải giao dịch...</p>
-          </div>
-        )}
+      <div className="px-4 mt-6 space-y-6 text-left">
+        {isLoading && <p className="text-center py-20 text-slate-500 text-sm animate-pulse">{t("common.loading")}</p>}
 
         {!isLoading &&
           Object.entries(groupedTransactions).map(([date, dayTransactions]) => (
             <div key={date}>
-              <p className="text-sm text-slate-400 mb-3">
-                {new Date(date).toLocaleDateString("vi-VN", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
+              <p className="text-sm font-bold text-slate-500 mb-3 uppercase tracking-widest">
+                {new Date(date).toLocaleDateString(locale === "vi" ? "vi-VN" : "en-US", {
+                  weekday: "short",
                   day: "numeric",
+                  month: "short",
                 })}
               </p>
-              <Card className="divide-y divide-slate-800 bg-slate-900 border-slate-800">
+              <Card className="divide-y divide-slate-800 bg-slate-900/50 border-slate-800">
                 {dayTransactions.map((transaction) => (
-                  <div key={transaction.id} className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
-                            transaction.type === "income"
-                              ? "bg-emerald-500/15 border-emerald-500/30"
-                              : "bg-slate-800 border-slate-700"
-                          }`}
-                        >
-                          {getCategoryIcon(transaction.category)}
-                        </div>
-                        <div>
-                          <p className="text-sm text-slate-100">{transaction.description}</p>
-                          <p className="text-xs text-slate-400">{transaction.category}</p>
-                        </div>
+                  <div key={transaction.id} className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
+                        transaction.type === "income" ? "bg-emerald-500/10 border-emerald-500/20" : "bg-slate-800 border-white/5"
+                      }`}>
+                        {getCategoryIcon(transaction.category)}
                       </div>
-                      <div className="text-right">
-                        <p
-                          className={`text-sm mb-1 ${
-                            transaction.type === "income" ? "text-emerald-300" : "text-rose-300"
-                          }`}
-                        >
-                          {transaction.type === "income" ? "+" : "-"}
-                          {formatCurrency(transaction.amount)}
-                        </p>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleEdit(transaction)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-600"
-                            onClick={() => handleDelete(transaction.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-100">{transaction.description}</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{transaction.category}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-black mb-1 ${transaction.type === "income" ? "text-emerald-400" : "text-rose-400"}`}>
+                        {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
+                      </p>
+                      <div className="flex gap-1 justify-end">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-500" onClick={() => handleEdit(transaction)}><Edit className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500/60" onClick={() => handleDelete(transaction.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                       </div>
                     </div>
                   </div>
@@ -353,127 +297,14 @@ export function Transactions() {
           ))}
 
         {!isLoading && transactions.length === 0 && (
-          <div className="text-center py-12 text-slate-400">
-            <p>Không có giao dịch nào</p>
+          <div className="py-20 flex flex-col items-center gap-4 opacity-30">
+             <Wallet className="w-12 h-12" />
+             <p className="text-[10px] font-black uppercase tracking-widest">{t("common.noData")}</p>
           </div>
         )}
       </div>
 
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}
-      >
-        <DialogTrigger asChild>
-          <div
-            className="fixed left-1/2 w-full max-w-md -translate-x-1/2 px-4 flex justify-end pointer-events-none"
-            style={{ bottom: "calc(84px + env(safe-area-inset-bottom))" }}
-          >
-            <Button
-              className="w-14 h-14 rounded-full shadow-lg pointer-events-auto"
-              size="icon"
-              onClick={() => setIsDialogOpen(true)}
-            >
-              <Plus className="w-6 h-6" />
-            </Button>
-          </div>
-        </DialogTrigger>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingTransaction ? "Sửa giao dịch" : "Thêm giao dịch mới"}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Loại giao dịch</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <Button
-                  type="button"
-                  variant={formData.type === "expense" ? "default" : "outline"}
-                  onClick={() => setFormData({ ...formData, type: "expense", categoryId: "" })}
-                >
-                  Chi tiêu
-                </Button>
-                <Button
-                  type="button"
-                  variant={formData.type === "income" ? "default" : "outline"}
-                  onClick={() => setFormData({ ...formData, type: "income", categoryId: "" })}
-                >
-                  Thu nhập
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="amount">Số tiền</Label>
-              <Input
-                id="amount"
-                type="number"
-                placeholder="0"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="category">Danh mục</Label>
-              <Select
-                value={formData.categoryId}
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn danh mục" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="description">Mô tả</Label>
-              <Input
-                id="description"
-                placeholder="Nhập mô tả"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="date">Ngày</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  setIsDialogOpen(false);
-                  resetForm();
-                }}
-              >
-                Hủy
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                {isSubmitting ? "Đang lưu..." : editingTransaction ? "Cập nhật" : "Thêm"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Re-use SmartInput form logic or a full Dialog here as needed */}
     </div>
   );
 }

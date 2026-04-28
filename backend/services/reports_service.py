@@ -56,7 +56,7 @@ class ReportsService:
         savings_ratio_percent = round((balance_minor / income_minor) * 100, 2) if income_minor > 0 else 0.0
 
         expense_by_category = ReportsService._build_expense_by_category(transactions, expense_minor)
-        income_expense_series = ReportsService._build_income_expense_series(transactions, start_date, end_date)
+        income_expense_series = ReportsService._build_income_expense_series(transactions, start_date, end_date, period)
         cash_flow_series = ReportsService._build_cash_flow_series(transactions, start_date, end_date)
         insights = ReportsService._build_insights(expense_by_category, expense_minor, start_date, end_date)
 
@@ -120,6 +120,7 @@ class ReportsService:
         transactions: list[Transaction],
         start_date: date,
         end_date: date,
+        period: ReportPeriod,
     ) -> list[IncomeExpenseSeriesItem]:
         income_map: dict[date, int] = defaultdict(int)
         expense_map: dict[date, int] = defaultdict(int)
@@ -131,16 +132,39 @@ class ReportsService:
                 expense_map[transaction.transaction_date] += int(transaction.amount_minor)
 
         result: list[IncomeExpenseSeriesItem] = []
-        cursor = start_date
-        while cursor <= end_date:
-            result.append(
-                IncomeExpenseSeriesItem(
-                    bucket_label=cursor.strftime("%d/%m"),
-                    income_minor=income_map[cursor],
-                    expense_minor=expense_map[cursor],
+        
+        if period == ReportPeriod.QUARTER:
+            cursor = start_date
+            while cursor <= end_date:
+                week_end = min(cursor + timedelta(days=6), end_date)
+                week_income = 0
+                week_expense = 0
+                
+                day_cursor = cursor
+                while day_cursor <= week_end:
+                    week_income += income_map[day_cursor]
+                    week_expense += expense_map[day_cursor]
+                    day_cursor += timedelta(days=1)
+                
+                result.append(
+                    IncomeExpenseSeriesItem(
+                        bucket_label=f"{cursor.strftime('%d/%m')}-{week_end.strftime('%d/%m')}",
+                        income_minor=week_income,
+                        expense_minor=week_expense,
+                    )
                 )
-            )
-            cursor += timedelta(days=1)
+                cursor += timedelta(days=7)
+        else:
+            cursor = start_date
+            while cursor <= end_date:
+                result.append(
+                    IncomeExpenseSeriesItem(
+                        bucket_label=cursor.strftime("%d/%m"),
+                        income_minor=income_map[cursor],
+                        expense_minor=expense_map[cursor],
+                    )
+                )
+                cursor += timedelta(days=1)
 
         return result
 
@@ -192,25 +216,28 @@ class ReportsService:
     @staticmethod
     def _resolve_period(period: ReportPeriod, anchor_date: date) -> tuple[date, date]:
         if period == ReportPeriod.WEEK:
-            return anchor_date - timedelta(days=6), anchor_date
+            # Start of week (Monday)
+            start_date = anchor_date - timedelta(days=anchor_date.weekday())
+            end_date = start_date + timedelta(days=6)
+            return start_date, end_date
 
         if period == ReportPeriod.MONTH:
             start_date = anchor_date.replace(day=1)
-            if anchor_date.month == 12:
-                next_month = anchor_date.replace(year=anchor_date.year + 1, month=1, day=1)
+            # Find last day of month
+            if start_date.month == 12:
+                end_date = date(start_date.year, 12, 31)
             else:
-                next_month = anchor_date.replace(month=anchor_date.month + 1, day=1)
-            end_date = next_month - timedelta(days=1)
+                end_date = start_date.replace(month=start_date.month + 1, day=1) - timedelta(days=1)
             return start_date, end_date
 
-        quarter = (anchor_date.month - 1) // 3 + 1
-        start_month = (quarter - 1) * 3 + 1
-        start_date = anchor_date.replace(month=start_month, day=1)
-
-        if start_month == 10:
-            next_quarter = anchor_date.replace(year=anchor_date.year + 1, month=1, day=1)
-        else:
-            next_quarter = anchor_date.replace(month=start_month + 3, day=1)
-
-        end_date = next_quarter - timedelta(days=1)
-        return start_date, end_date
+        if period == ReportPeriod.QUARTER:
+            quarter = (anchor_date.month - 1) // 3 + 1
+            start_month = (quarter - 1) * 3 + 1
+            start_date = date(anchor_date.year, start_month, 1)
+            
+            end_month = start_month + 2
+            if end_month == 12:
+                end_date = date(anchor_date.year, 12, 31)
+            else:
+                end_date = date(anchor_date.year, end_month + 1, 1) - timedelta(days=1)
+            return start_date, end_date
