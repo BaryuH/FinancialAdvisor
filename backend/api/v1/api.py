@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-
+ 
 from api.v1.endpoints.auth import router as auth_router
 from api.v1.endpoints.budgets import router as budgets_router
 from api.v1.endpoints.calendar import router as calendar_router

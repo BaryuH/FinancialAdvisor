@@ -1,12 +1,5 @@
 # Dependencies
-.vscode/Số dư:
--2.017.000 đ
-Dòng tiền:
--2.017.000 đ
-Thu:
-0 đ
-Chi:
-+2.017.000 đ
+.vscode/
 node_modules/
 backend/.venv/
 backend/__pycache__/
@@ -106,10 +99,7 @@ coverage.xml
 ehthumbs.db
 Thumbs.db
 .idea/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/launch.json
+.vscode/
 *.swp
 *.swo
 *~
